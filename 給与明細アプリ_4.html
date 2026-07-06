@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>給与台帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F7F5FB;
+  --surface:#FFFFFF;
+  --surface-2:#F1ECF9;
+  --border:#E3DBF2;
+  --text:#241B33;
+  --text-2:#726790;
+  --text-3:#A79BC2;
+  --accent:#5B3A94;
+  --accent-soft:#EAE1F8;
+  --money:#B08A1E;
+  --money-soft:#F8EFD7;
+  --danger:#B23B30;
+  --danger-soft:#F5E2DF;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Zen Kaku Gothic New',sans-serif;-webkit-tap-highlight-color:transparent;}
+body{min-height:100vh;display:flex;justify-content:center;}
+#app{width:100%;max-width:480px;min-height:100vh;background:var(--bg);display:flex;flex-direction:column;position:relative;}
+header.top{padding:24px 20px 16px;}
+header.top h1{font-size:20px;font-weight:700;margin:0;letter-spacing:.01em;}
+header.top p{margin:4px 0 0;font-size:12px;color:var(--text-2);}
+main{flex:1;padding:0 16px 96px;overflow-y:auto;}
+.view{display:none;}
+.view.active{display:block;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px;}
+.section-title{font-size:13px;font-weight:700;margin:0 0 12px;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em;}
+.muted{color:var(--text-2);font-size:12px;}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+label.field{display:block;font-size:12px;color:var(--text-2);margin:12px 0 4px;}
+label.field:first-child{margin-top:0;}
+input[type=text],input[type=number],input[type=month],input[type=date],select{
+  width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);
+  color:var(--text);font-size:14px;font-family:'Zen Kaku Gothic New',sans-serif;
+}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px;}
+.mono{font-family:'JetBrains Mono',monospace;}
+button{font-family:'Zen Kaku Gothic New',sans-serif;cursor:pointer;}
+.btn{border:none;background:var(--accent);color:#fff;padding:12px 14px;border-radius:10px;font-size:14px;font-weight:500;width:100%;}
+.btn:active{transform:scale(.98);}
+.btn.outline{background:transparent;color:var(--text);border:1px solid var(--border);}
+.btn.small{width:auto;padding:8px 14px;font-size:13px;}
+.btn.ghost{background:var(--surface-2);color:var(--text);}
+.summary-table{width:100%;border-collapse:collapse;}
+.summary-table tr{border-bottom:1px solid var(--border);}
+.summary-table tr:last-child{border-bottom:none;}
+.summary-table td{padding:12px 0;font-size:13px;}
+.summary-table td.label{color:var(--text-2);}
+.summary-table td.val{text-align:right;font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;}
+.ledger-row{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border);}
+.ledger-row:last-child{border-bottom:none;}
+.ledger-row .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+.ledger-row.missing .dot{background:var(--danger);}
+.ledger-row .info{flex:1;min-width:0;}
+.ledger-row .info .m{font-size:15px;font-weight:500;}
+.ledger-row .info .f{font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ledger-row.missing .info .m{color:var(--danger);}
+.tag{display:inline-block;font-size:11px;padding:3px 9px;border-radius:20px;font-weight:500;}
+.tag.ok{background:var(--accent-soft);color:var(--accent);}
+.tag.missing{background:var(--danger-soft);color:var(--danger);}
+.big-num{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;color:var(--text);}
+.empty{text-align:center;padding:26px 10px;color:var(--text-2);font-size:13px;}
+nav.tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--border);display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom));}
+nav.tabbar button{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 2px;color:var(--text-3);font-size:10px;border-radius:10px;}
+nav.tabbar button.active{color:var(--accent);}
+nav.tabbar button svg{width:20px;height:20px;}
+.log-item{display:flex;justify-content:space-between;font-size:13px;padding:9px 0;border-bottom:1px solid var(--border);}
+.log-item:last-child{border-bottom:none;}
+.log-item .d{color:var(--text-3);font-size:11px;}
+.plusminus{display:flex;gap:8px;margin-top:10px;}
+.plusminus button{flex:1;}
+.modal-overlay{position:fixed;inset:0;background:rgba(23,26,23,.55);display:flex;align-items:flex-end;justify-content:center;z-index:50;}
+.modal-overlay.hidden{display:none;}
+.modal-sheet{background:var(--surface);width:100%;max-width:480px;border-radius:18px 18px 0 0;max-height:88vh;display:flex;flex-direction:column;}
+.modal-sheet header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);}
+.modal-sheet header h3{margin:0;font-size:14px;font-weight:700;}
+.modal-sheet .frame{flex:1;background:#2b2c2a;}
+.modal-sheet iframe{width:100%;height:60vh;border:none;display:block;}
+.x-btn{background:none;border:none;font-size:20px;color:var(--text-2);line-height:1;padding:4px;}
+.formula{font-size:11px;color:var(--text-2);background:var(--surface-2);padding:10px 12px;border-radius:10px;margin-top:8px;font-family:'JetBrains Mono',monospace;line-height:1.7;white-space:pre-line;}
+.notice{font-size:11px;color:var(--text-2);line-height:1.6;margin-top:8px;}
+.helptext{font-size:11px;color:var(--text-2);line-height:1.7;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);}
+.link-btn{background:none;border:none;color:var(--accent);font-size:12px;font-weight:500;padding:10px 0 0;width:100%;text-align:center;}
+</style>
+</head>
+<body>
+<div id="app">
+
+<header class="top">
+  <h1>給与台帳</h1>
+  <p id="header-sub">明細・有給・残業を一つにまとめて管理</p>
+</header>
+
+<main>
+
+  <!-- 明細タブ -->
+  <section class="view active" id="view-meisai">
+    <div class="card">
+      <div class="section-title">サマリー</div>
+      <table class="summary-table">
+        <tr><td class="label">次回給料日</td><td class="val" id="sum-payday">-</td></tr>
+        <tr><td class="label">次回締め日</td><td class="val" id="sum-closeday">-</td></tr>
+        <tr><td class="label">次回賞与</td><td class="val" id="sum-bonus">-</td></tr>
+        <tr><td class="label">有給残日数</td><td class="val" id="sum-leave">0.0日</td></tr>
+        <tr><td class="label">次回有給付与</td><td class="val" id="sum-grant">-</td></tr>
+        <tr><td class="label" id="sum-ot-label">前月残業時間</td><td class="val" id="sum-ot">未入力</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <div class="row" style="margin-bottom:2px;">
+        <div class="section-title" style="margin-bottom:0;">直近3か月の明細</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn small ghost" id="btn-refresh-drive">Drive更新</button>
+          <button class="btn small ghost" id="btn-add-file">＋ PDFを追加</button>
+        </div>
+      </div>
+      <input type="file" id="file-input" accept="application/pdf,image/*" multiple style="display:none;">
+      <p class="muted" id="meisai-status">まだ明細が登録されていません。「＋ PDFを追加」からスキャン済みのPDFを選んでください。</p>
+      <div id="meisai-list"></div>
+      <button class="link-btn" id="btn-show-all">すべての明細を表示</button>
+      <div id="meisai-all" style="display:none;margin-top:6px;border-top:1px solid var(--border);"></div>
+      <div class="section-title" style="margin-top:18px;">賞与明細</div>
+      <div id="meisai-bonus"><div class="empty">賞与の明細はまだありません。</div></div>
+    </div>
+  </section>
+
+  <!-- 有給タブ -->
+  <section class="view" id="view-yukyu">
+    <div class="card">
+      <div class="section-title">有給残日数</div>
+      <div class="row">
+        <div>
+          <span class="big-num mono" id="yukyu-balance">0.0</span>
+          <span class="muted">日</span>
+        </div>
+        <span class="tag ok" id="yukyu-updated">未更新</span>
+      </div>
+      <div class="plusminus">
+        <button class="btn outline small" id="yukyu-minus">− 使用</button>
+        <button class="btn small" id="yukyu-plus">＋ 付与</button>
+      </div>
+      <label class="field">日数</label>
+      <input type="number" id="yukyu-input-days" step="0.5" min="0" value="1">
+      <label class="field" id="yukyu-note-label">理由（任意）</label>
+      <input type="text" id="yukyu-input-note" placeholder="私用のため">
+    </div>
+    <div class="card">
+      <div class="section-title">履歴</div>
+      <div id="yukyu-log"><div class="empty">記録はまだありません。</div></div>
+    </div>
+  </section>
+
+  <!-- 給与タブ -->
+  <section class="view" id="view-kyuyo">
+    <div class="card">
+      <div class="section-title">次回給料日</div>
+      <span class="big-num mono" id="payday-next">-</span>
+      <p class="notice">給料日は5日（土日の場合は前営業日）。祝日は考慮していないため前後する場合があります。</p>
+    </div>
+    <div class="card">
+      <div class="section-title">残業代の見込み</div>
+      <label class="field">対象月（月末締め）</label>
+      <input type="month" id="ot-month">
+      <label class="field">対象月の残業時間（時間）</label>
+      <input type="number" id="ot-hours" step="0.5" min="0" value="0">
+      <div class="formula" id="ot-formula">基本給と所定労働時間を設定タブで入力してください。</div>
+      <div class="row" style="margin-top:14px;">
+        <span class="muted">残業代</span>
+        <span class="mono" id="ot-pay" style="font-size:18px;font-weight:700;color:var(--money);">¥0</span>
+      </div>
+      <div class="row">
+        <span class="muted">支給見込み合計</span>
+        <span class="mono" id="ot-total" style="font-size:18px;font-weight:700;color:var(--money);">¥0</span>
+      </div>
+      <p class="muted" id="ot-payday-label" style="margin-top:8px;"></p>
+      <button class="btn" style="margin-top:12px;" id="ot-save">この月の残業時間を保存</button>
+    </div>
+    <div class="card">
+      <div class="section-title">給与推移</div>
+      <div id="salary-chart"></div>
+      <div class="row" style="margin-top:10px;gap:16px;justify-content:flex-start;">
+        <span class="muted" style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--accent);display:inline-block;"></span>基本給</span>
+        <span class="muted" style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--money);display:inline-block;"></span>残業代</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 設定タブ -->
+  <section class="view" id="view-settings">
+    <div class="card">
+      <div class="section-title">Google Drive自動連携（任意）</div>
+      <p class="muted">API keyやCloud Consoleは使いません。Googleの無料機能「Apps Script」を1回だけ設定すると、指定フォルダを自動で見に行くようになります。</p>
+      <label class="field">① script.google.com で新しいプロジェクトを作成し、下記コードを貼り付けて保存</label>
+      <textarea id="gas-code" readonly style="width:100%;height:110px;font-family:'JetBrains Mono',monospace;font-size:10px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);" onclick="this.select()"></textarea>
+      <button class="btn ghost small" id="btn-copy-gas" style="margin-top:6px;width:100%;">コードをコピー</button>
+      <div class="helptext">
+        ② 画面右上「デプロイ」→「新しいデプロイ」→種類は「ウェブアプリ」を選択<br>
+        ③ 「実行するユーザー」＝自分、「アクセスできるユーザー」＝全員　に設定してデプロイ<br>
+        ④ 自分のアカウントで権限を確認（無料・支払い不要）<br>
+        ⑤ 発行された「.../exec」で終わるURLを下に貼り付け
+      </div>
+      <label class="field">Apps ScriptのURL</label>
+      <input type="text" id="set-script-url" placeholder="https://script.google.com/macros/s/xxxx/exec">
+      <label class="field">フォルダID</label>
+      <input type="text" id="set-drive-folder" placeholder="1kHB__0s1hetSuXEQWVqtyllw7P6BVRdJ">
+      <div class="helptext">フォルダのURLの「/folders/」の後ろの文字列がフォルダIDです。フォルダを公開共有する必要はありません（Apps Scriptがご自身のアカウント権限で読みに行きます）。</div>
+    </div>
+    <div class="card">
+      <div class="section-title">給与の基礎情報</div>
+      <label class="field">基本給（月額・円）</label>
+      <input type="number" id="set-base-salary" placeholder="300000">
+      <label class="field">所定労働時間（月・時間）</label>
+      <input type="number" id="set-standard-hours" placeholder="160">
+      <label class="field">残業割増率</label>
+      <input type="number" id="set-ot-rate" step="0.01" placeholder="1.25">
+    </div>
+    <div class="card">
+      <div class="section-title">有給ルール</div>
+      <label class="field">次回付与日</label>
+      <input type="date" id="set-grant-date">
+      <label class="field">付与日数</label>
+      <input type="number" id="set-grant-days" min="0" step="0.5" placeholder="10">
+      <div class="helptext">付与日が来ると自動で残日数に加算され、次回付与日は1年後に更新されます。付与された日数は付与日から2年で失効します。</div>
+    </div>
+    <div class="card">
+      <div class="section-title">支払いルール</div>
+      <label class="field">給料日（毎月・日）</label>
+      <input type="number" id="set-pay-day" min="1" max="31" placeholder="5">
+      <label class="field">締め日（1〜31、0で月末）</label>
+      <input type="number" id="set-close-day" min="0" max="31" placeholder="0">
+      <label class="field">賞与月 ①</label>
+      <input type="number" id="set-bonus-month1" min="1" max="12" placeholder="8">
+      <label class="field">賞与月 ②</label>
+      <input type="number" id="set-bonus-month2" min="1" max="12" placeholder="12">
+      <div class="helptext">賞与の支給日は給料日と同じ日で計算します。土日にあたる場合は自動で前営業日に繰り上げます。祝日は判定していないため、祝日と重なる場合はご自身で読み替えてください。</div>
+    </div>
+    <button class="btn" id="btn-save-settings">設定を保存</button>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button data-view="meisai" class="active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="1.5"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>
+    明細
+  </button>
+  <button data-view="yukyu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+    有給
+  </button>
+  <button data-view="kyuyo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
+    給与
+  </button>
+  <button data-view="settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14 3h-4l-.6 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 2 1.2L10 21h4l.6-2.6a7 7 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.07-.4.1-.8.1-1.2Z"/></svg>
+    設定
+  </button>
+</nav>
+
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal-sheet">
+    <header>
+      <h3 id="modal-title">明細</h3>
+      <button class="x-btn" id="modal-close">×</button>
+    </header>
+    <div class="frame">
+      <iframe id="modal-iframe" src="" allow="autoplay"></iframe>
+    </div>
+    <div style="padding:14px 18px;border-top:1px solid var(--border);">
+      <button class="btn ghost" id="btn-ocr-open" style="font-size:13px;">この明細を自動読み取り（実験的）</button>
+      <div id="ocr-panel" style="display:none;margin-top:12px;">
+        <p class="muted">向きが違う場合は回転してから実行してください。文字認識には数十秒かかることがあります。</p>
+        <div class="row" style="justify-content:center;gap:8px;margin-bottom:10px;">
+          <button class="btn small outline" id="ocr-rotate-l">⟲ 回転</button>
+          <button class="btn small outline" id="ocr-rotate-r">回転 ⟳</button>
+        </div>
+        <canvas id="ocr-canvas" style="width:100%;border:1px solid var(--border);border-radius:8px;"></canvas>
+        <button class="btn" id="ocr-run" style="margin-top:10px;">文字を読み取る</button>
+        <p class="muted" id="ocr-status" style="margin-top:8px;"></p>
+        <div id="ocr-result" style="display:none;margin-top:12px;">
+          <label class="field">種別</label>
+          <select id="ocr-type">
+            <option value="salary">給与明細</option>
+            <option value="bonus">賞与明細</option>
+          </select>
+          <label class="field">対象年月</label>
+          <input type="month" id="ocr-month">
+          <div id="ocr-salary-fields">
+            <label class="field">基本給</label>
+            <input type="number" id="ocr-base">
+            <label class="field">残業代（時間外手当）</label>
+            <input type="number" id="ocr-otpay">
+          </div>
+          <div id="ocr-bonus-fields" style="display:none;">
+            <label class="field">賞与額</label>
+            <input type="number" id="ocr-bonus">
+          </div>
+          <label class="field">総支給額（参考）</label>
+          <input type="number" id="ocr-total">
+          <button class="btn" id="ocr-save" style="margin-top:12px;">この内容をグラフに反映</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+function loadJSON(key, fallback){
+  try{
+    const raw = localStorage.getItem(key);
+    if(raw === null) return fallback;
+    return JSON.parse(raw);
+  }catch(e){ return fallback; }
+}
+function saveJSON(key, val){
+  try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){ console.error('保存失敗', e); }
+}
+
+let settings = loadJSON('settings', {baseSalary:'', standardHours:'', otRate:1.25, payDay:5, closeDay:0, bonusMonth1:8, bonusMonth2:12, grantDate:'', grantDays:10, scriptUrl:'', driveFolderId:''});
+let leave = loadJSON('leave', {log:[]});
+let otHoursByMonth = loadJSON('otHoursByMonth', {});
+let payHistory = loadJSON('payHistory', {});
+let documents = loadJSON('documents', []);
+let driveDocs = [];
+let ocrRotation = 0;
+
+const GAS_CODE = `function doGet(e) {
+  var action = e.parameter.action;
+  var out;
+  try {
+    if (action === 'list') {
+      var folder = DriveApp.getFolderById(e.parameter.folder);
+      var it = folder.getFiles();
+      var arr = [];
+      while (it.hasNext()) {
+        var f = it.next();
+        arr.push({id: f.getId(), name: f.getName(), mimeType: f.getMimeType()});
+      }
+      out = {files: arr};
+    } else if (action === 'file') {
+      var file = DriveApp.getFileById(e.parameter.id);
+      var blob = file.getBlob();
+      out = {name: file.getName(), mimeType: blob.getContentType(), base64: Utilities.base64Encode(blob.getBytes())};
+    } else {
+      out = {error: 'unknown action'};
+    }
+  } catch (err) {
+    out = {error: String(err)};
+  }
+  return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}`;
+document.getElementById('gas-code').value = GAS_CODE;
+document.getElementById('btn-copy-gas').addEventListener('click', async ()=>{
+  try{
+    await navigator.clipboard.writeText(GAS_CODE);
+    const btn = document.getElementById('btn-copy-gas');
+    const orig = btn.textContent;
+    btn.textContent = 'コピーしました';
+    setTimeout(()=>{ btn.textContent = orig; }, 1500);
+  }catch(e){
+    document.getElementById('gas-code').select();
+  }
+});
+
+document.querySelectorAll('nav.tabbar button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('main .view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-'+btn.dataset.view).classList.add('active');
+  });
+});
+
+function fillSettingsForm(){
+  document.getElementById('set-base-salary').value = settings.baseSalary || '';
+  document.getElementById('set-standard-hours').value = settings.standardHours || '';
+  document.getElementById('set-ot-rate').value = settings.otRate || 1.25;
+  document.getElementById('set-pay-day').value = settings.payDay!==undefined ? settings.payDay : 5;
+  document.getElementById('set-close-day').value = settings.closeDay!==undefined ? settings.closeDay : 0;
+  document.getElementById('set-bonus-month1').value = settings.bonusMonth1!==undefined ? settings.bonusMonth1 : 8;
+  document.getElementById('set-bonus-month2').value = settings.bonusMonth2!==undefined ? settings.bonusMonth2 : 12;
+  document.getElementById('set-grant-date').value = settings.grantDate || '';
+  document.getElementById('set-grant-days').value = settings.grantDays!==undefined ? settings.grantDays : 10;
+  document.getElementById('set-script-url').value = settings.scriptUrl || '';
+  document.getElementById('set-drive-folder').value = settings.driveFolderId || '';
+}
+fillSettingsForm();
+
+document.getElementById('btn-save-settings').addEventListener('click', ()=>{
+  settings = {
+    baseSalary: parseFloat(document.getElementById('set-base-salary').value)||0,
+    standardHours: parseFloat(document.getElementById('set-standard-hours').value)||0,
+    otRate: parseFloat(document.getElementById('set-ot-rate').value)||1.25,
+    payDay: parseInt(document.getElementById('set-pay-day').value)||5,
+    closeDay: document.getElementById('set-close-day').value===''?0:parseInt(document.getElementById('set-close-day').value),
+    bonusMonth1: parseInt(document.getElementById('set-bonus-month1').value)||8,
+    bonusMonth2: parseInt(document.getElementById('set-bonus-month2').value)||12,
+    grantDate: document.getElementById('set-grant-date').value || '',
+    grantDays: parseFloat(document.getElementById('set-grant-days').value)||0,
+    scriptUrl: document.getElementById('set-script-url').value.trim(),
+    driveFolderId: document.getElementById('set-drive-folder').value.trim()
+  };
+  saveJSON('settings', settings);
+  checkAndApplyScheduledGrant();
+  renderOvertime();
+  renderSummary();
+  renderLeave();
+  renderSalaryChart();
+  document.querySelector('nav.tabbar button[data-view=meisai]').click();
+  refreshDriveDocs();
+});
+
+function parseYearMonth(name){
+  let m = name.match(/(\d{4})[-_年](\d{1,2})月?/);
+  if(m) return {y:parseInt(m[1]), mo:parseInt(m[2])};
+  m = name.match(/(?<!\d)(\d{4})(\d{2})(\d{2})(?!\d)/);
+  if(m) return {y:parseInt(m[1]), mo:parseInt(m[2])};
+  m = name.match(/(?<!\d)(\d{4})(\d{2})(?!\d)/);
+  if(m) return {y:parseInt(m[1]), mo:parseInt(m[2])};
+  m = name.match(/(\d{1,2})月/);
+  if(m) return {y:new Date().getFullYear(), mo:parseInt(m[1])};
+  return null;
+}
+
+function getRecentMonths(n){
+  const arr=[];
+  const d = new Date();
+  let y = d.getFullYear();
+  let mo = d.getMonth()+1;
+  for(let i=0;i<n;i++){
+    arr.push({y, mo});
+    mo -= 1;
+    if(mo <= 0){ mo += 12; y -= 1; }
+  }
+  return arr;
+}
+
+const DB_NAME = 'meisaiDB', DB_VERSION = 1, STORE_NAME = 'files';
+function idbOpen(){
+  return new Promise((resolve,reject)=>{
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e)=>{
+      const db = e.target.result;
+      if(!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+    };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+async function idbPut(id, blob){
+  const db = await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(STORE_NAME,'readwrite');
+    tx.objectStore(STORE_NAME).put(blob, id);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function idbGet(id){
+  const db = await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(STORE_NAME,'readonly');
+    const req = tx.objectStore(STORE_NAME).get(id);
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+async function idbDelete(id){
+  const db = await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(STORE_NAME,'readwrite');
+    tx.objectStore(STORE_NAME).delete(id);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+function genId(){ return 'f_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); }
+
+document.getElementById('btn-add-file').addEventListener('click', ()=>{
+  document.getElementById('file-input').click();
+});
+document.getElementById('file-input').addEventListener('change', async (e)=>{
+  const files = [...e.target.files];
+  const status = document.getElementById('meisai-status');
+  for(const file of files){
+    status.textContent = `${file.name} を追加しています…`;
+    let ym = parseYearMonth(file.name);
+    if(!ym){
+      const guess = prompt(`「${file.name}」の対象年月を入力してください（例: 2026-07）`, currentMonthStr());
+      const m = guess && guess.match(/^(\d{4})-(\d{1,2})$/);
+      if(m){ ym = {y:parseInt(m[1]), mo:parseInt(m[2])}; }
+      else{ ym = null; }
+    }
+    const type = file.name.includes('賞与') ? 'bonus' : 'salary';
+    const id = genId();
+    try{
+      await idbPut(id, file);
+      documents.push({id, name:file.name, y: ym?ym.y:null, mo: ym?ym.mo:null, type, addedAt: Date.now()});
+      saveJSON('documents', documents);
+    }catch(err){
+      alert(`${file.name} の保存に失敗しました：${err.message}`);
+    }
+  }
+  e.target.value = '';
+  renderMeisaiLists();
+});
+
+async function deleteDocument(id){
+  if(!confirm('この明細を削除しますか？')) return;
+  documents = documents.filter(d=>d.id!==id);
+  saveJSON('documents', documents);
+  try{ await idbDelete(id); }catch(err){}
+  renderMeisaiLists();
+}
+
+let currentOcrFile = null;
+async function openFile(doc, label){
+  currentOcrFile = doc;
+  document.getElementById('modal-title').textContent = label;
+  document.getElementById('modal-iframe').src = '';
+  document.getElementById('ocr-panel').style.display = 'none';
+  document.getElementById('ocr-result').style.display = 'none';
+  document.getElementById('ocr-status').textContent = '';
+  ocrRotation = 0;
+  document.getElementById('modal').classList.remove('hidden');
+  try{
+    if(!doc._bytes){ doc._bytes = await fetchFileBytes(doc); }
+    const blob = new Blob([doc._bytes.slice(0)], {type: doc._mimeType || 'application/pdf'});
+    const url = URL.createObjectURL(blob);
+    document.getElementById('modal-iframe').src = url;
+  }catch(e){
+    document.getElementById('ocr-status').textContent = 'ファイルの読み込みに失敗しました：' + e.message;
+  }
+}
+document.getElementById('modal-close').addEventListener('click', ()=>{
+  document.getElementById('modal').classList.add('hidden');
+  document.getElementById('modal-iframe').src = '';
+});
+
+function renderLedgerRow(container, doc, ym, labelOverride){
+  const row = document.createElement('div');
+  const label = labelOverride || `${ym.y}年${ym.mo}月度の明細`;
+  if(doc){
+    row.className = 'ledger-row';
+    const delBtn = doc.source==='drive' ? '' : `<button class="x-btn" style="font-size:16px;" data-del="${doc.id}">×</button>`;
+    row.innerHTML = `
+      <div class="dot"></div>
+      <div class="info">
+        <div class="m">${label}</div>
+        <div class="f">${doc.name}${doc.source==='drive' ? '（Drive）' : ''}</div>
+      </div>
+      <span class="tag ok">閲覧</span>
+      ${delBtn}
+    `;
+    row.querySelector('.info').addEventListener('click', ()=>openFile(doc, label));
+    row.querySelector('.tag').addEventListener('click', ()=>openFile(doc, label));
+    const delEl = row.querySelector('[data-del]');
+    if(delEl) delEl.addEventListener('click', (ev)=>{ ev.stopPropagation(); deleteDocument(doc.id); });
+  }else{
+    row.className = 'ledger-row missing';
+    row.innerHTML = `
+      <div class="dot"></div>
+      <div class="info">
+        <div class="m">${ym.y}年${ym.mo}月度紛失</div>
+        <div class="f">この月の明細が登録されていません</div>
+      </div>
+      <span class="tag missing">紛失</span>
+    `;
+  }
+  container.appendChild(row);
+}
+
+function renderMeisaiLists(){
+  const allDocs = [...documents, ...driveDocs];
+  const salaryDocs = allDocs.filter(d=>d.type==='salary');
+  const bonusDocs = allDocs.filter(d=>d.type==='bonus');
+
+  const recent = getRecentMonths(3);
+  const listEl = document.getElementById('meisai-list');
+  listEl.innerHTML = '';
+  recent.forEach(ym=>{
+    const doc = salaryDocs.find(d=>d.y===ym.y && d.mo===ym.mo);
+    renderLedgerRow(listEl, doc, ym);
+  });
+
+  const allEl = document.getElementById('meisai-all');
+  allEl.innerHTML = '';
+  const recentKeys = new Set(recent.map(r=>r.y*100+r.mo));
+  const others = salaryDocs.filter(d=>!d.y || !recentKeys.has(d.y*100+d.mo))
+    .sort((a,b)=> (b.y*100+(b.mo||0)) - (a.y*100+(a.mo||0)));
+  if(others.length===0){
+    allEl.innerHTML = '<div class="empty">他に明細はありません。</div>';
+  }else{
+    others.forEach(d=>{
+      const ym = {y:d.y||'-', mo:d.mo||'-'};
+      renderLedgerRow(allEl, d, ym);
+    });
+  }
+
+  const bonusEl = document.getElementById('meisai-bonus');
+  bonusEl.innerHTML = '';
+  if(bonusDocs.length===0){
+    bonusEl.innerHTML = '<div class="empty">賞与の明細はまだありません。</div>';
+  }else{
+    bonusDocs.sort((a,b)=> (b.y*100+(b.mo||0)) - (a.y*100+(a.mo||0))).forEach(d=>{
+      const label = d.y ? `${d.y}年${d.mo}月度の賞与明細` : d.name;
+      renderLedgerRow(bonusEl, d, {y:d.y,mo:d.mo}, label);
+    });
+  }
+
+  const status = document.getElementById('meisai-status');
+  status.textContent = allDocs.length ? `${allDocs.length}件の明細（ローカル${documents.length}件・Drive${driveDocs.length}件）` : 'まだ明細が登録されていません。「＋ PDFを追加」またはDrive連携を設定してください。';
+}
+document.getElementById('btn-show-all').addEventListener('click', ()=>{
+  const el = document.getElementById('meisai-all');
+  const showing = el.style.display !== 'none';
+  el.style.display = showing ? 'none' : 'block';
+  document.getElementById('btn-show-all').textContent = showing ? 'すべての明細を表示' : '閉じる';
+});
+
+function base64ToArrayBuffer(base64){
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function refreshDriveDocs(){
+  const status = document.getElementById('meisai-status');
+  if(!settings.scriptUrl || !settings.driveFolderId){
+    driveDocs = [];
+    renderMeisaiLists();
+    return;
+  }
+  status.textContent = 'Driveフォルダを確認しています…';
+  try{
+    const url = `${settings.scriptUrl}?action=list&folder=${encodeURIComponent(settings.driveFolderId)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if(data.error){
+      driveDocs = [];
+      renderMeisaiLists();
+      status.textContent = 'Driveの取得に失敗しました：' + data.error;
+      return;
+    }
+    const files = (data.files||[]).filter(f=>f.mimeType && (f.mimeType.includes('pdf') || f.mimeType.includes('image')));
+    driveDocs = files.map(f=>{
+      const ym = parseYearMonth(f.name);
+      return {
+        id: f.id, name: f.name,
+        y: ym?ym.y:null, mo: ym?ym.mo:null,
+        type: f.name.includes('賞与') ? 'bonus' : 'salary',
+        source: 'drive'
+      };
+    });
+    renderMeisaiLists();
+  }catch(e){
+    driveDocs = [];
+    renderMeisaiLists();
+    status.textContent = 'Driveへの通信に失敗しました：' + e.message;
+  }
+}
+document.getElementById('btn-refresh-drive').addEventListener('click', refreshDriveDocs);
+
+function loadScript(src){
+  return new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = ()=>reject(new Error('読み込み失敗: '+src));
+    document.head.appendChild(s);
+  });
+}
+let libsReady = null;
+function ensureOcrLibs(){
+  if(libsReady) return libsReady;
+  libsReady = (async ()=>{
+    if(!window.pdfjsLib){
+      await loadScript('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js');
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    }
+    if(!window.Tesseract){
+      await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+    }
+  })();
+  return libsReady;
+}
+
+async function fetchFileBytes(doc){
+  if(doc.source === 'drive'){
+    const url = `${settings.scriptUrl}?action=file&id=${encodeURIComponent(doc.id)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    doc._mimeType = data.mimeType;
+    return base64ToArrayBuffer(data.base64);
+  }
+  const blob = await idbGet(doc.id);
+  if(!blob) throw new Error('ローカルに保存されたファイルが見つかりません');
+  doc._mimeType = blob.type;
+  return await blob.arrayBuffer();
+}
+
+async function renderOcrPreview(){
+  const status = document.getElementById('ocr-status');
+  try{
+    await ensureOcrLibs();
+    if(!currentOcrFile){ return; }
+    if(!currentOcrFile._bytes){
+      status.textContent = 'ファイルを読み込んでいます…';
+      currentOcrFile._bytes = await fetchFileBytes(currentOcrFile);
+    }
+    const loadingTask = window.pdfjsLib.getDocument({data: currentOcrFile._bytes.slice(0)});
+    const pdf = await loadingTask.promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({scale: 1.6, rotation: ocrRotation});
+    const canvas = document.getElementById('ocr-canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    await page.render({canvasContext: ctx, viewport}).promise;
+    status.textContent = '向きを確認し、正しければ「文字を読み取る」を押してください。';
+  }catch(e){
+    status.textContent = 'PDFの表示に失敗しました：' + e.message;
+  }
+}
+
+document.getElementById('btn-ocr-open').addEventListener('click', async ()=>{
+  const panel = document.getElementById('ocr-panel');
+  panel.style.display = panel.style.display==='none' ? 'block' : 'none';
+  if(panel.style.display==='block'){
+    document.getElementById('ocr-status').textContent = '読み込み中…';
+    await renderOcrPreview();
+  }
+});
+document.getElementById('ocr-rotate-l').addEventListener('click', ()=>{
+  ocrRotation = (ocrRotation + 270) % 360;
+  renderOcrPreview();
+});
+document.getElementById('ocr-rotate-r').addEventListener('click', ()=>{
+  ocrRotation = (ocrRotation + 90) % 360;
+  renderOcrPreview();
+});
+
+function extractAmount(text, label){
+  const re = new RegExp(label + '\\s*[:：]?\\s*[¥\\\\]?\\s*([0-9][0-9,]{2,})');
+  const m = text.match(re);
+  if(!m) return null;
+  return parseInt(m[1].replace(/,/g,''));
+}
+function extractReiwaYearMonth(text){
+  const head = text.split('（')[0].split('(')[0];
+  const m = head.match(/令和\s*(\d+)\s*年\s*(\d+)\s*月/) || text.match(/令和\s*(\d+)\s*年\s*(\d+)\s*月/);
+  if(!m) return null;
+  const y = 2018 + parseInt(m[1]);
+  const mo = parseInt(m[2]);
+  return `${y}-${String(mo).padStart(2,'0')}`;
+}
+
+document.getElementById('ocr-run').addEventListener('click', async ()=>{
+  const status = document.getElementById('ocr-status');
+  const resultBox = document.getElementById('ocr-result');
+  status.textContent = '文字を認識しています…（初回はモデル取得のため時間がかかります）';
+  resultBox.style.display = 'none';
+  try{
+    await ensureOcrLibs();
+    const canvas = document.getElementById('ocr-canvas');
+    const worker = await window.Tesseract.createWorker('jpn');
+    const { data } = await worker.recognize(canvas);
+    await worker.terminate();
+    const text = data.text || '';
+
+    const isBonus = /賞\s*与/.test(text) && !/基本給/.test(text);
+    document.getElementById('ocr-type').value = isBonus ? 'bonus' : 'salary';
+    document.getElementById('ocr-salary-fields').style.display = isBonus ? 'none' : 'block';
+    document.getElementById('ocr-bonus-fields').style.display = isBonus ? 'block' : 'none';
+
+    const ym = extractReiwaYearMonth(text);
+    document.getElementById('ocr-month').value = ym || '';
+    document.getElementById('ocr-base').value = extractAmount(text, '基本給') || '';
+    document.getElementById('ocr-otpay').value = extractAmount(text, '時間外手当') || '';
+    document.getElementById('ocr-bonus').value = extractAmount(text, '賞\\s*与') || '';
+    document.getElementById('ocr-total').value = extractAmount(text, '総支給額') || '';
+
+    status.textContent = '認識結果です。金額・年月は誤読の可能性があるので確認してください。';
+    resultBox.style.display = 'block';
+  }catch(e){
+    status.textContent = '読み取りに失敗しました：' + e.message;
+  }
+});
+
+document.getElementById('ocr-type').addEventListener('change', ()=>{
+  const isBonus = document.getElementById('ocr-type').value === 'bonus';
+  document.getElementById('ocr-salary-fields').style.display = isBonus ? 'none' : 'block';
+  document.getElementById('ocr-bonus-fields').style.display = isBonus ? 'block' : 'none';
+});
+
+document.getElementById('ocr-save').addEventListener('click', ()=>{
+  const ym = document.getElementById('ocr-month').value;
+  if(!ym){ alert('対象年月を入力してください。'); return; }
+  const type = document.getElementById('ocr-type').value;
+  if(type === 'bonus'){
+    const bonus = parseFloat(document.getElementById('ocr-bonus').value)||0;
+    payHistory[ym] = { type:'bonus', total: bonus };
+  }else{
+    const base = parseFloat(document.getElementById('ocr-base').value)||0;
+    const otPay = parseFloat(document.getElementById('ocr-otpay').value)||0;
+    const totalField = parseFloat(document.getElementById('ocr-total').value)||0;
+    payHistory[ym] = { type:'salary', base, otPay, total: totalField || (base+otPay) };
+  }
+  saveJSON('payHistory', payHistory);
+  renderSalaryChart();
+  document.getElementById('ocr-status').textContent = `${ym} の明細をグラフに反映しました。`;
+});
+
+function isoDate(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function isoToDisplay(iso){
+  const [y,m,d] = iso.split('-').map(Number);
+  return `${y}/${m}/${d}`;
+}
+function computeLeaveInfo(){
+  const todayISO = isoDate(new Date());
+  const entries = [...(leave.log||[])].sort((a,b)=> a.date.localeCompare(b.date));
+  const grants = entries.filter(e=>e.delta>0).map(e=>{
+    const exp = new Date(e.date+'T00:00:00');
+    exp.setFullYear(exp.getFullYear()+2);
+    return {date:e.date, remaining:e.delta, expiryISO:isoDate(exp)};
+  });
+  const usages = entries.filter(e=>e.delta<0).map(e=>({date:e.date, amount:-e.delta}));
+  let unconsumed = 0;
+  usages.forEach(u=>{
+    let amt = u.amount;
+    for(const g of grants){
+      if(amt<=0) break;
+      if(g.date > u.date) continue;
+      if(g.remaining<=0) continue;
+      const take = Math.min(g.remaining, amt);
+      g.remaining -= take;
+      amt -= take;
+    }
+    unconsumed += amt;
+  });
+  const validRemaining = grants.filter(g=>g.expiryISO > todayISO).reduce((s,g)=>s+g.remaining,0);
+  const balance = Math.round((validRemaining - unconsumed)*10)/10;
+  return {balance};
+}
+function checkAndApplyScheduledGrant(){
+  if(!settings.grantDate || !settings.grantDays) return;
+  const today = new Date(); today.setHours(0,0,0,0);
+  let changed = false;
+  while(settings.grantDate && new Date(settings.grantDate+'T00:00:00') <= today){
+    leave.log.push({date: settings.grantDate, delta: settings.grantDays, note: '定期付与'});
+    const d = new Date(settings.grantDate+'T00:00:00');
+    d.setFullYear(d.getFullYear()+1);
+    settings.grantDate = isoDate(d);
+    changed = true;
+  }
+  if(changed){
+    saveJSON('leave', leave);
+    saveJSON('settings', settings);
+  }
+}
+
+function renderLeave(){
+  const info = computeLeaveInfo();
+  document.getElementById('yukyu-balance').textContent = info.balance.toFixed(1);
+  document.getElementById('yukyu-updated').textContent = settings.grantDate ? `次回付与 ${isoToDisplay(settings.grantDate)}` : '未設定';
+  const logEl = document.getElementById('yukyu-log');
+  if(!leave.log || leave.log.length===0){
+    logEl.innerHTML = '<div class="empty">記録はまだありません。</div>';
+    return;
+  }
+  logEl.innerHTML = '';
+  [...leave.log].sort((a,b)=>b.date.localeCompare(a.date)).forEach(item=>{
+    const div = document.createElement('div');
+    div.className = 'log-item';
+    const sign = item.delta > 0 ? '+' : '';
+    div.innerHTML = `<div><div>${item.note||(item.delta>0?'付与':'使用')}</div><div class="d">${isoToDisplay(item.date)}</div></div><div class="mono">${sign}${item.delta.toFixed(1)}日</div>`;
+    logEl.appendChild(div);
+  });
+}
+
+function applyLeave(sign){
+  const days = parseFloat(document.getElementById('yukyu-input-days').value);
+  if(!days || days<=0) return;
+  const note = document.getElementById('yukyu-input-note').value.trim();
+  if(sign < 0 && !note){
+    alert('何に有給を使ったか、理由を入力してください。');
+    document.getElementById('yukyu-input-note').focus();
+    return;
+  }
+  const delta = sign * days;
+  leave.log.push({date: isoDate(new Date()), delta, note});
+  saveJSON('leave', leave);
+  renderLeave();
+  renderSummary();
+  document.getElementById('yukyu-input-note').value = '';
+}
+document.getElementById('yukyu-plus').addEventListener('click', ()=>applyLeave(1));
+document.getElementById('yukyu-minus').addEventListener('click', ()=>applyLeave(-1));
+
+function adjustWeekend(date){
+  const day = date.getDay();
+  if(day===6) date.setDate(date.getDate()-1);
+  if(day===0) date.setDate(date.getDate()-2);
+  return date;
+}
+function fmtDate(d){
+  return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+}
+function lastDayOfMonth(y, m1){
+  return new Date(y, m1, 0).getDate();
+}
+function makeDayDate(y, m1, day){
+  if(day===0){
+    const ld = lastDayOfMonth(y, m1);
+    return new Date(y, m1-1, ld);
+  }
+  return new Date(y, m1-1, Math.min(day, lastDayOfMonth(y, m1)));
+}
+function nextOccurrenceOfDay(day, adjust){
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  let y = today.getFullYear();
+  let m1 = today.getMonth()+1;
+  let candidate = makeDayDate(y, m1, day);
+  if(adjust) candidate = adjustWeekend(new Date(candidate));
+  if(candidate < today){
+    m1 += 1;
+    if(m1 > 12){ m1 = 1; y += 1; }
+    candidate = makeDayDate(y, m1, day);
+    if(adjust) candidate = adjustWeekend(new Date(candidate));
+  }
+  return candidate;
+}
+function nextPayday(){
+  return nextOccurrenceOfDay(settings.payDay!==undefined ? settings.payDay : 5, true);
+}
+function paydayForMonth(y, mo){
+  const day = settings.payDay!==undefined ? settings.payDay : 5;
+  return adjustWeekend(makeDayDate(y, mo, day));
+}
+function nextClosingDate(){
+  const day = settings.closeDay!==undefined ? settings.closeDay : 0;
+  return nextOccurrenceOfDay(day, false);
+}
+function nextBonusDate(){
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const m1 = settings.bonusMonth1 || 8;
+  const m2 = settings.bonusMonth2 || 12;
+  const day = settings.payDay!==undefined ? settings.payDay : 5;
+  const candidates = [];
+  [today.getFullYear(), today.getFullYear()+1].forEach(y=>{
+    [m1, m2].forEach(m=>{
+      candidates.push(adjustWeekend(makeDayDate(y, m, day)));
+    });
+  });
+  const future = candidates.filter(d=>d >= today).sort((a,b)=>a-b);
+  return future[0];
+}
+function currentMonthStr(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function previousMonthStr(){
+  const d = new Date();
+  d.setMonth(d.getMonth()-1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+document.getElementById('ot-month').value = currentMonthStr();
+
+function renderOvertime(){
+  document.getElementById('payday-next').textContent = fmtDate(nextPayday());
+  const monthStr = document.getElementById('ot-month').value || currentMonthStr();
+  const [y, mo] = monthStr.split('-').map(Number);
+  const hours = otHoursByMonth[monthStr] !== undefined ? otHoursByMonth[monthStr] : 0;
+  document.getElementById('ot-hours').value = hours;
+
+  const base = settings.baseSalary || 0;
+  const std = settings.standardHours || 0;
+  const rate = settings.otRate || 1.25;
+
+  if(!base || !std){
+    document.getElementById('ot-formula').textContent = '基本給と所定労働時間を設定タブで入力してください。';
+    document.getElementById('ot-pay').textContent = '¥0';
+    document.getElementById('ot-total').textContent = '¥0';
+  }else{
+    const hourly = base/std;
+    const otPay = Math.round(hourly * rate * hours);
+    const total = base + otPay;
+    document.getElementById('ot-formula').textContent =
+      `時給換算 = ${base.toLocaleString()}円 ÷ ${std}時間 = ${Math.round(hourly).toLocaleString()}円/時\n残業代 = ${Math.round(hourly).toLocaleString()}円 × ${rate} × ${hours}時間`;
+    document.getElementById('ot-pay').textContent = `¥${otPay.toLocaleString()}`;
+    document.getElementById('ot-total').textContent = `¥${total.toLocaleString()}`;
+  }
+  const pd = paydayForMonth(y, mo+1);
+  document.getElementById('ot-payday-label').textContent = `${y}年${mo}月度（月末締め） → 支給予定日 ${fmtDate(pd)}`;
+}
+document.getElementById('ot-month').addEventListener('change', renderOvertime);
+document.getElementById('ot-hours').addEventListener('input', renderOvertime);
+document.getElementById('ot-save').addEventListener('click', ()=>{
+  const monthStr = document.getElementById('ot-month').value || currentMonthStr();
+  otHoursByMonth[monthStr] = parseFloat(document.getElementById('ot-hours').value)||0;
+  saveJSON('otHoursByMonth', otHoursByMonth);
+  renderOvertime();
+  renderSummary();
+  renderSalaryChart();
+});
+
+function renderSalaryChart(){
+  const container = document.getElementById('salary-chart');
+  const base = settings.baseSalary || 0;
+  const std = settings.standardHours || 0;
+  const rate = settings.otRate || 1.25;
+
+  const keys = new Set([...Object.keys(otHoursByMonth), ...Object.keys(payHistory)]);
+  if(keys.size===0 || (!base && Object.keys(payHistory).length===0)){
+    container.innerHTML = '<div class="empty">基本給と残業時間を入力するか、明細を読み取ると推移が表示されます。</div>';
+    return;
+  }
+  const sortedKeys = [...keys].sort();
+  const entries = sortedKeys.map(k=>{
+    const [y,m] = k.split('-').map(Number);
+    const actual = payHistory[k];
+    if(actual && actual.type==='bonus'){
+      return {m, key:k, isBonus:true, base:0, otPay:0, total: actual.total};
+    }
+    if(actual && actual.type==='salary'){
+      return {m, key:k, isBonus:false, base: actual.base, otPay: actual.otPay, total: actual.total};
+    }
+    const hours = otHoursByMonth[k]||0;
+    const otPay = (base && std) ? Math.round((base/std)*rate*hours) : 0;
+    return {m, key:k, isBonus:false, base, otPay, total: base+otPay};
+  });
+  const recent = entries.slice(-6);
+  const maxTotal = Math.max(...recent.map(e=>e.total), 1);
+  const W = 320, H = 170, padBottom = 22, padTop = 10;
+  const usable = recent.length;
+  const gap = 14;
+  const barW = Math.max(20, (W - gap*(usable+1)) / usable);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;">`;
+  recent.forEach((e,i)=>{
+    const x = gap + i*(barW+gap);
+    const totalH = (e.total/maxTotal)*(H-padBottom-padTop);
+    if(e.isBonus){
+      const yTop = H - padBottom - totalH;
+      svg += `<rect x="${x}" y="${yTop}" width="${barW}" height="${totalH}" rx="3" style="fill:var(--money);"/>`;
+    }else{
+      const baseH = (e.base/maxTotal)*(H-padBottom-padTop);
+      const otH = Math.max(totalH - baseH, 0);
+      const yBaseTop = H - padBottom - baseH;
+      const yOtTop = H - padBottom - totalH;
+      svg += `<rect x="${x}" y="${yBaseTop}" width="${barW}" height="${baseH}" rx="3" style="fill:var(--accent);"/>`;
+      if(otH>0.5) svg += `<rect x="${x}" y="${yOtTop}" width="${barW}" height="${otH}" rx="3" style="fill:var(--money);"/>`;
+    }
+    const label = e.isBonus ? `${e.m}月賞` : `${e.m}月`;
+    svg += `<text x="${x+barW/2}" y="${H-6}" text-anchor="middle" font-size="10" style="fill:var(--text-2);">${label}</text>`;
+  });
+  svg += '</svg>';
+  container.innerHTML = svg;
+}
+
+function renderSummary(){
+  document.getElementById('sum-payday').textContent = fmtDate(nextPayday());
+  document.getElementById('sum-closeday').textContent = fmtDate(nextClosingDate());
+  document.getElementById('sum-bonus').textContent = fmtDate(nextBonusDate());
+  document.getElementById('sum-leave').textContent = computeLeaveInfo().balance.toFixed(1)+'日';
+  document.getElementById('sum-grant').textContent = settings.grantDate ? `${isoToDisplay(settings.grantDate)}（${settings.grantDays||0}日）` : '未設定';
+  const pm = previousMonthStr();
+  const [py, pmo] = pm.split('-').map(Number);
+  document.getElementById('sum-ot-label').textContent = `${pmo}月度残業時間`;
+  const hrs = otHoursByMonth[pm];
+  document.getElementById('sum-ot').textContent = (hrs===undefined) ? '未入力' : `${hrs}時間`;
+}
+
+checkAndApplyScheduledGrant();
+renderLeave();
+renderOvertime();
+renderSummary();
+renderSalaryChart();
+renderMeisaiLists();
+refreshDriveDocs();
+</script>
+</body>
+</html>
