@@ -882,7 +882,8 @@ function serializeSettingsText(){
   lines.push('');
   lines.push('有給使用履歴');
   (leave.log||[]).filter(e=>e.delta<0).forEach(e=>{
-    lines.push(`${e.date.replace(/-/g,'')}:${Math.abs(e.delta)}:${e.note||''}`);
+    const src = (e.consumedFrom && e.consumedFrom.length) ? '@' + e.consumedFrom.map(c=>`${c.year}=${c.amount}`).join(',') : '';
+    lines.push(`${e.date.replace(/-/g,'')}:${Math.abs(e.delta)}:${e.note||''}${src}`);
   });
   return lines.join('\n');
 }
@@ -896,10 +897,17 @@ function parseSettingsText(text){
     if(line === '有給使用履歴'){ inUsage = true; return; }
     let m;
     if(inUsage){
-      m = line.match(/^(\d{8}):(-?\d+(?:\.\d+)?):(.*)$/);
+      m = line.match(/^(\d{8}):(-?\d+(?:\.\d+)?):([^@]*)(?:@(.*))?$/);
       if(m){
         const iso = `${m[1].slice(0,4)}-${m[1].slice(4,6)}-${m[1].slice(6,8)}`;
-        result.usage.push({date: iso, delta: -Math.abs(parseFloat(m[2])), note: m[3]});
+        const entry = {date: iso, delta: -Math.abs(parseFloat(m[2])), note: m[3]};
+        if(m[4]){
+          entry.consumedFrom = m[4].split(',').map(part=>{
+            const [year, amount] = part.split('=');
+            return {year, amount: parseFloat(amount)};
+          }).filter(c=>c.year && !isNaN(c.amount));
+        }
+        result.usage.push(entry);
       }
       return;
     }
@@ -1111,17 +1119,23 @@ function addLeaveGrant(days, year){
 function deductLeave(days){
   let remaining = days;
   const years = Object.keys(leave.byYear||{}).sort();
+  const consumed = [];
   for(const y of years){
     if(remaining<=0) break;
     const avail = leave.byYear[y];
+    if(avail<=0) continue;
     const take = Math.min(avail, remaining);
+    if(take<=0) continue;
     leave.byYear[y] = Math.round((avail-take)*10)/10;
     remaining -= take;
+    consumed.push({year:y, amount: Math.round(take*10)/10});
   }
   if(remaining > 0.0001){
     const cy = String(new Date().getFullYear());
     leave.byYear[cy] = Math.round(((leave.byYear[cy]||0) - remaining)*10)/10;
+    consumed.push({year:cy, amount: Math.round(remaining*10)/10});
   }
+  return consumed;
 }
 function computeLeaveInfo(){
   return { balance: totalLeaveBalance() };
@@ -1173,8 +1187,14 @@ async function deleteLeaveEntry(item){
   if(!confirm(`「${item.note||(item.delta>0?'付与':'使用')}」（${isoToDisplay(item.date)}・${item.delta>0?'+':''}${item.delta}日）を削除しますか？`)) return;
   const idx = leave.log.indexOf(item);
   if(idx>-1) leave.log.splice(idx,1);
-  const y = String(parseInt(item.date.split('-')[0]));
-  leave.byYear[y] = Math.round(((leave.byYear[y]||0) - item.delta)*10)/10;
+  if(item.delta < 0 && item.consumedFrom && item.consumedFrom.length){
+    item.consumedFrom.forEach(c=>{
+      leave.byYear[c.year] = Math.round(((leave.byYear[c.year]||0) + c.amount)*10)/10;
+    });
+  }else{
+    const y = String(parseInt(item.date.split('-')[0]));
+    leave.byYear[y] = Math.round(((leave.byYear[y]||0) - item.delta)*10)/10;
+  }
   ensureRecentYearKeys();
   saveJSON('leave', leave);
   renderLeave();
@@ -1196,12 +1216,15 @@ async function applyLeave(sign){
     document.getElementById('yukyu-input-note').focus();
     return;
   }
+  let consumedFrom = null;
   if(sign > 0){
     addLeaveGrant(days, parseInt(dateStr.split('-')[0]));
   }else{
-    deductLeave(days);
+    consumedFrom = deductLeave(days);
   }
-  leave.log.push({date: dateStr, delta: sign*days, note});
+  const entry = {date: dateStr, delta: sign*days, note};
+  if(consumedFrom) entry.consumedFrom = consumedFrom;
+  leave.log.push(entry);
   ensureRecentYearKeys();
   saveJSON('leave', leave);
   renderLeave();
