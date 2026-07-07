@@ -221,11 +221,7 @@ nav.tabbar button svg{width:20px;height:20px;}
       <label class="field">フォルダID</label>
       <input type="text" id="set-drive-folder" placeholder="1kHB__0s1hetSuXEQWVqtyllw7P6BVRdJ">
       <div class="helptext">フォルダのURLの「/folders/」の後ろの文字列がフォルダIDです。フォルダを公開共有する必要はありません（Apps Scriptがご自身のアカウント権限で読みに行きます）。</div>
-      <label class="field" style="display:flex;align-items:center;gap:8px;margin-top:14px;">
-        <input type="checkbox" id="set-sync-enabled" style="width:auto;">
-        設定・有給をDrive上のテキストファイルと同期する
-      </label>
-      <div class="helptext">オンにすると、基本給・給料日・有給日数などの設定を「給与明細設定値」というGoogleドキュメントにDriveフォルダへ保存し、他の端末からも同じ内容を読み込めるようになります。このドキュメントが無い場合は自動で作成されるので、事前に手動で作る必要はありません（Apps ScriptのURL・フォルダIDだけは端末ごとに入力が必要です）。</div>
+      <div class="helptext">URLとフォルダIDの両方が入力されていれば、基本給・給料日・有給日数などの設定を「給与明細設定値」というGoogleドキュメントに自動で保存・同期します（このドキュメントが無い場合は自動作成されるので、事前に手動で作る必要はありません）。「設定を保存」を押すたび、また有給を記録するたびに自動で同期されます。Apps ScriptのURL・フォルダIDだけは端末ごとに入力が必要です。</div>
       <p class="muted" id="sync-status" style="margin-top:6px;"></p>
       <button class="btn ghost small" id="btn-sync-now" style="margin-top:6px;width:100%;">今すぐ同期</button>
       <pre id="sync-debug" style="display:none;white-space:pre-wrap;font-size:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:8px;max-height:260px;overflow:auto;"></pre>
@@ -352,7 +348,7 @@ function saveJSON(key, val){
   try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){ console.error('保存失敗', e); }
 }
 
-let settings = loadJSON('settings', {baseSalary:'', standardHours:'', otRate:1.25, payDay:5, closeDay:0, bonusMonth1:8, bonusMonth2:12, bonusDay1:undefined, bonusDay2:undefined, grantDate:'', grantDays:10, scriptUrl:'', driveFolderId:'', syncEnabled:false});
+let settings = loadJSON('settings', {baseSalary:'', standardHours:'', otRate:1.25, payDay:5, closeDay:0, bonusMonth1:8, bonusMonth2:12, bonusDay1:undefined, bonusDay2:undefined, grantDate:'', grantDays:10, scriptUrl:'', driveFolderId:''});
 let leave = loadJSON('leave', {byYear:{}, log:[]});
 if(!leave.byYear){
   const migrated = leave.balance!==undefined ? leave.balance : Math.round((leave.log||[]).reduce((s,e)=>s+e.delta,0)*10)/10;
@@ -468,7 +464,6 @@ function fillSettingsForm(){
   document.getElementById('set-grant-days').value = settings.grantDays!==undefined ? settings.grantDays : 10;
   document.getElementById('set-script-url').value = settings.scriptUrl || '';
   document.getElementById('set-drive-folder').value = settings.driveFolderId || '';
-  document.getElementById('set-sync-enabled').checked = !!settings.syncEnabled;
 }
 fillSettingsForm();
 
@@ -486,8 +481,7 @@ function readSettingsForm(){
     grantDate: document.getElementById('set-grant-date').value || '',
     grantDays: parseFloat(document.getElementById('set-grant-days').value)||0,
     scriptUrl: document.getElementById('set-script-url').value.trim(),
-    driveFolderId: document.getElementById('set-drive-folder').value.trim(),
-    syncEnabled: document.getElementById('set-sync-enabled').checked
+    driveFolderId: document.getElementById('set-drive-folder').value.trim()
   };
 }
 document.getElementById('btn-save-settings').addEventListener('click', async ()=>{
@@ -499,7 +493,7 @@ document.getElementById('btn-save-settings').addEventListener('click', async ()=
   renderLeave();
   renderSalaryChart();
   refreshDriveDocs();
-  if(settings.syncEnabled){
+  if(settings.scriptUrl && settings.driveFolderId){
     await pushSettingsToDrive();
   }else{
     document.querySelector('nav.tabbar button[data-view=meisai]').click();
@@ -511,10 +505,6 @@ document.getElementById('btn-sync-now').addEventListener('click', async ()=>{
   saveJSON('settings', settings);
   if(!settings.scriptUrl || !settings.driveFolderId){
     status.textContent = 'Apps ScriptのURLとフォルダIDを入力してください。';
-    return;
-  }
-  if(!settings.syncEnabled){
-    status.textContent = '「設定・有給をDriveと同期する」にチェックを入れてください。';
     return;
   }
   status.textContent = '同期を開始します…';
@@ -880,7 +870,7 @@ function dedupeLeaveLog(){
   if(leave.log.length !== before) saveJSON('leave', leave);
 }
 async function pullSettingsFromDrive(){
-  if(!settings.scriptUrl || !settings.driveFolderId || !settings.syncEnabled) return;
+  if(!settings.scriptUrl || !settings.driveFolderId) return;
   const status = document.getElementById('sync-status');
   const debugEl = document.getElementById('sync-debug');
   status.textContent = 'Driveから設定を取得しています…';
@@ -923,7 +913,7 @@ async function pullSettingsFromDrive(){
 }
 
 async function pushSettingsToDrive(){
-  if(!settings.scriptUrl || !settings.driveFolderId || !settings.syncEnabled) return false;
+  if(!settings.scriptUrl || !settings.driveFolderId) return false;
   const status = document.getElementById('sync-status');
   status.textContent = 'Driveに設定を送信しています…';
   try{
@@ -1231,7 +1221,7 @@ async function applyLeave(sign){
   renderLeave();
   renderSummary();
   document.getElementById('yukyu-input-note').value = '';
-  if(settings.syncEnabled){
+  if(settings.scriptUrl && settings.driveFolderId){
     const ok = await pushSettingsToDrive();
     if(!ok) alert('Driveへの保存に失敗しました。設定タブの同期状況を確認してください（記録自体はこの端末には残っています）。');
   }
