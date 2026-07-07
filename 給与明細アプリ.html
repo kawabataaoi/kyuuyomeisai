@@ -489,9 +489,12 @@ document.getElementById('btn-save-settings').addEventListener('click', async ()=
   renderSummary();
   renderLeave();
   renderSalaryChart();
-  document.querySelector('nav.tabbar button[data-view=meisai]').click();
   refreshDriveDocs();
-  if(settings.syncEnabled) await pushSettingsToDrive();
+  if(settings.syncEnabled){
+    await pushSettingsToDrive();
+  }else{
+    document.querySelector('nav.tabbar button[data-view=meisai]').click();
+  }
 });
 document.getElementById('btn-sync-now').addEventListener('click', async ()=>{
   await pullSettingsFromDrive();
@@ -824,8 +827,13 @@ async function pullSettingsFromDrive(){
       leave.byYear = parsed.byYear;
     }
     const grants = (leave.log||[]).filter(e=>e.delta>0);
-    leave.log = [...grants, ...parsed.usage];
+    const localUsage = (leave.log||[]).filter(e=>e.delta<0);
+    const usageKey = e => `${e.date}|${e.delta}|${e.note}`;
+    const seen = new Set(parsed.usage.map(usageKey));
+    const onlyLocal = localUsage.filter(e=>!seen.has(usageKey(e)));
+    leave.log = [...grants, ...parsed.usage, ...onlyLocal];
     saveJSON('leave', leave);
+    if(onlyLocal.length>0){ pushSettingsToDrive(); }
     fillSettingsForm();
     checkAndApplyScheduledGrant();
     renderLeave();
@@ -841,17 +849,19 @@ async function pullSettingsFromDrive(){
 }
 
 async function pushSettingsToDrive(){
-  if(!settings.scriptUrl || !settings.driveFolderId || !settings.syncEnabled) return;
+  if(!settings.scriptUrl || !settings.driveFolderId || !settings.syncEnabled) return false;
   const status = document.getElementById('sync-status');
-  status.textContent = 'Driveに設定を保存しています…';
+  status.textContent = 'Driveに設定を送信しています…';
   try{
     const content = encodeURIComponent(serializeSettingsText());
     const url = `${settings.scriptUrl}?action=writeSettings&folder=${encodeURIComponent(settings.driveFolderId)}&content=${content}`;
     const data = await jsonpRequest(url);
-    if(data.error){ status.textContent = '保存失敗：' + data.error; return; }
+    if(data.error){ status.textContent = '送信失敗：' + data.error; return false; }
     status.textContent = 'Driveに保存しました（' + new Date().toLocaleTimeString('ja-JP') + '）';
+    return true;
   }catch(e){
-    status.textContent = '保存に失敗しました：' + e.message;
+    status.textContent = '送信に失敗しました：' + e.message;
+    return false;
   }
 }
 
@@ -1126,7 +1136,7 @@ function renderLeave(){
   });
 }
 
-function applyLeave(sign){
+async function applyLeave(sign){
   const days = parseFloat(document.getElementById('yukyu-input-days').value);
   if(!days || days<=0) return;
   const note = document.getElementById('yukyu-input-note').value.trim();
@@ -1145,7 +1155,10 @@ function applyLeave(sign){
   renderLeave();
   renderSummary();
   document.getElementById('yukyu-input-note').value = '';
-  pushSettingsToDrive();
+  if(settings.syncEnabled){
+    const ok = await pushSettingsToDrive();
+    if(!ok) alert('Driveへの保存に失敗しました。設定タブの同期状況を確認してください（記録自体はこの端末には残っています）。');
+  }
 }
 document.getElementById('yukyu-plus').addEventListener('click', ()=>applyLeave(1));
 document.getElementById('yukyu-minus').addEventListener('click', ()=>applyLeave(-1));
