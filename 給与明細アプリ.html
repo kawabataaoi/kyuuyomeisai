@@ -472,8 +472,8 @@ function fillSettingsForm(){
 }
 fillSettingsForm();
 
-document.getElementById('btn-save-settings').addEventListener('click', async ()=>{
-  settings = {
+function readSettingsForm(){
+  return {
     baseSalary: parseFloat(document.getElementById('set-base-salary').value)||0,
     standardHours: parseFloat(document.getElementById('set-standard-hours').value)||0,
     otRate: parseFloat(document.getElementById('set-ot-rate').value)||1.25,
@@ -489,6 +489,9 @@ document.getElementById('btn-save-settings').addEventListener('click', async ()=
     driveFolderId: document.getElementById('set-drive-folder').value.trim(),
     syncEnabled: document.getElementById('set-sync-enabled').checked
   };
+}
+document.getElementById('btn-save-settings').addEventListener('click', async ()=>{
+  settings = readSettingsForm();
   saveJSON('settings', settings);
   checkAndApplyScheduledGrant();
   renderOvertime();
@@ -503,6 +506,18 @@ document.getElementById('btn-save-settings').addEventListener('click', async ()=
   }
 });
 document.getElementById('btn-sync-now').addEventListener('click', async ()=>{
+  const status = document.getElementById('sync-status');
+  settings = readSettingsForm();
+  saveJSON('settings', settings);
+  if(!settings.scriptUrl || !settings.driveFolderId){
+    status.textContent = 'Apps ScriptのURLとフォルダIDを入力してください。';
+    return;
+  }
+  if(!settings.syncEnabled){
+    status.textContent = '「設定・有給をDriveと同期する」にチェックを入れてください。';
+    return;
+  }
+  status.textContent = '同期を開始します…';
   await pullSettingsFromDrive();
   await pushSettingsToDrive();
 });
