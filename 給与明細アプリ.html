@@ -221,7 +221,7 @@ nav.tabbar button svg{width:20px;height:20px;}
         <input type="checkbox" id="set-sync-enabled" style="width:auto;">
         設定・有給をDrive上のテキストファイルと同期する
       </label>
-      <div class="helptext">オンにすると、基本給・給料日・有給日数などの設定を「kyuyodaicho_settings.json」というファイルにDriveフォルダへ保存し、他の端末からも同じ内容を読み込めるようになります（Apps ScriptのURL・フォルダIDだけは端末ごとに入力が必要です）。</div>
+      <div class="helptext">オンにすると、基本給・給料日・有給日数などの設定を「給与明細設定値」というGoogleドキュメントにDriveフォルダへ保存し、他の端末からも同じ内容を読み込めるようになります。このドキュメントが無い場合は自動で作成されるので、事前に手動で作る必要はありません（Apps ScriptのURL・フォルダIDだけは端末ごとに入力が必要です）。</div>
       <p class="muted" id="sync-status" style="margin-top:6px;"></p>
       <button class="btn ghost small" id="btn-sync-now" style="margin-top:6px;width:100%;">今すぐ同期</button>
       <pre id="sync-debug" style="display:none;white-space:pre-wrap;font-size:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:8px;max-height:260px;overflow:auto;"></pre>
@@ -806,6 +806,17 @@ function parseSettingsText(text){
   return result;
 }
 
+function dedupeLeaveLog(){
+  const seen = new Set();
+  const before = (leave.log||[]).length;
+  leave.log = (leave.log||[]).filter(e=>{
+    const k = `${e.date}|${e.delta}|${e.note}`;
+    if(seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  if(leave.log.length !== before) saveJSON('leave', leave);
+}
 async function pullSettingsFromDrive(){
   if(!settings.scriptUrl || !settings.driveFolderId || !settings.syncEnabled) return;
   const status = document.getElementById('sync-status');
@@ -832,6 +843,7 @@ async function pullSettingsFromDrive(){
     const seen = new Set(parsed.usage.map(usageKey));
     const onlyLocal = localUsage.filter(e=>!seen.has(usageKey(e)));
     leave.log = [...grants, ...parsed.usage, ...onlyLocal];
+    dedupeLeaveLog();
     saveJSON('leave', leave);
     if(onlyLocal.length>0){ pushSettingsToDrive(); }
     fillSettingsForm();
@@ -1330,14 +1342,19 @@ function renderSummary(){
   document.getElementById('sum-ot').textContent = (hrs===undefined) ? '未入力' : `${hrs}時間`;
 }
 
-checkAndApplyScheduledGrant();
 renderLeave();
 renderOvertime();
 renderSummary();
 renderSalaryChart();
 renderMeisaiLists();
 refreshDriveDocs();
-pullSettingsFromDrive().then(()=>{ checkAndApplyScheduledGrant(); renderSummary(); });
+(async ()=>{
+  await pullSettingsFromDrive();
+  checkAndApplyScheduledGrant();
+  dedupeLeaveLog();
+  renderLeave();
+  renderSummary();
+})();
 </script>
 </body>
 </html>
