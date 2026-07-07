@@ -196,6 +196,10 @@ nav.tabbar button svg{width:20px;height:20px;}
     </div>
     <div class="card">
       <div class="section-title">給与推移（基本給＋残業代）</div>
+      <div class="row" style="justify-content:center;gap:10px;margin-bottom:6px;">
+        <button class="btn small outline" id="chart-prev">‹ 前の月</button>
+        <button class="btn small outline" id="chart-next">次の月 ›</button>
+      </div>
       <div id="salary-chart"></div>
       <div class="row" style="margin-top:10px;gap:12px;justify-content:flex-start;flex-wrap:wrap;">
         <span class="muted" style="display:flex;align-items:center;gap:6px;font-size:11px;"><span style="width:10px;height:10px;border-radius:3px;background:#3B6FD6;display:inline-block;"></span>基本給</span>
@@ -217,18 +221,18 @@ nav.tabbar button svg{width:20px;height:20px;}
       <input type="month" id="man-month">
       <div id="man-salary-fields">
         <label class="field">基本給</label>
-        <input type="number" id="man-base">
+        <input type="text" inputmode="numeric" class="man-amount" id="man-base">
         <label class="field">残業代（時間外手当）</label>
-        <input type="number" id="man-otpay">
+        <input type="text" inputmode="numeric" class="man-amount" id="man-otpay">
       </div>
       <div id="man-bonus-fields" style="display:none;">
         <label class="field">賞与額</label>
-        <input type="number" id="man-bonus">
+        <input type="text" inputmode="numeric" class="man-amount" id="man-bonus">
       </div>
       <label class="field">総支給額（参考・任意）</label>
-      <input type="number" id="man-total">
+      <input type="text" inputmode="numeric" class="man-amount" id="man-total">
       <label class="field">差引支給額（手取り・グラフに使用）</label>
-      <input type="number" id="man-net">
+      <input type="text" inputmode="numeric" class="man-amount" id="man-net">
       <button class="btn" id="man-save" style="margin-top:12px;">この内容をグラフに反映</button>
       <p class="muted" id="man-status" style="margin-top:8px;"></p>
     </div>
@@ -1100,18 +1104,27 @@ document.getElementById('man-type').addEventListener('change', ()=>{
   document.getElementById('man-bonus-fields').style.display = isBonus ? 'block' : 'none';
 });
 
+function parseAmount(v){
+  return parseFloat(String(v).replace(/,/g,'')) || 0;
+}
+document.querySelectorAll('.man-amount').forEach(input=>{
+  input.addEventListener('input', ()=>{
+    const raw = input.value.replace(/[^\d]/g,'');
+    input.value = raw === '' ? '' : parseInt(raw,10).toLocaleString('en-US');
+  });
+});
 document.getElementById('man-save').addEventListener('click', async ()=>{
   const ym = document.getElementById('man-month').value;
   if(!ym){ alert('対象年月を入力してください。'); return; }
   const type = document.getElementById('man-type').value;
-  const net = parseFloat(document.getElementById('man-net').value)||0;
+  const net = parseAmount(document.getElementById('man-net').value);
   if(type === 'bonus'){
-    const bonus = parseFloat(document.getElementById('man-bonus').value)||0;
+    const bonus = parseAmount(document.getElementById('man-bonus').value);
     payHistory[ym] = { type:'bonus', total: bonus, net: net || bonus };
   }else{
-    const base = parseFloat(document.getElementById('man-base').value)||0;
-    const otPay = parseFloat(document.getElementById('man-otpay').value)||0;
-    const totalField = parseFloat(document.getElementById('man-total').value)||0;
+    const base = parseAmount(document.getElementById('man-base').value);
+    const otPay = parseAmount(document.getElementById('man-otpay').value);
+    const totalField = parseAmount(document.getElementById('man-total').value);
     const total = totalField || (base+otPay);
     payHistory[ym] = { type:'salary', base, otPay, total, net: net || total };
   }
@@ -1400,6 +1413,8 @@ function formatMan(v){
   const rounded = Math.round(man*10)/10;
   return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}万円`;
 }
+let chartWindowEnd = null;
+const CHART_WINDOW = 6;
 function renderSalaryChart(){
   const container = document.getElementById('salary-chart');
   const settingsBase = settings.baseSalary || 0;
@@ -1409,9 +1424,11 @@ function renderSalaryChart(){
   const keys = new Set([...Object.keys(otHoursByMonth), ...Object.keys(payHistory)]);
   if(keys.size===0 || (!settingsBase && Object.keys(payHistory).length===0)){
     container.innerHTML = '<div class="empty">明細を読み取ると給与推移が表示されます。</div>';
+    document.getElementById('chart-prev').style.visibility = 'hidden';
+    document.getElementById('chart-next').style.visibility = 'hidden';
     return;
   }
-  const sortedKeys = [...keys].sort();
+  const sortedKeys = [...keys].sort().slice(-12);
   const entries = sortedKeys.map(k=>{
     const [y,m] = k.split('-').map(Number);
     const actual = payHistory[k];
@@ -1429,7 +1446,13 @@ function renderSalaryChart(){
     const otPay = (settingsBase && std) ? Math.round((settingsBase/std)*rate*hours) : 0;
     return {m, key:k, isBonus:false, isEstimate:true, base:settingsBase, otPay, total: settingsBase+otPay};
   });
-  const recent = entries.slice(-6);
+  if(chartWindowEnd === null || chartWindowEnd > entries.length) chartWindowEnd = entries.length;
+  if(chartWindowEnd < Math.min(CHART_WINDOW, entries.length)) chartWindowEnd = Math.min(CHART_WINDOW, entries.length);
+  const windowStart = Math.max(0, chartWindowEnd - CHART_WINDOW);
+  const recent = entries.slice(windowStart, chartWindowEnd);
+  document.getElementById('chart-prev').style.visibility = windowStart > 0 ? 'visible' : 'hidden';
+  document.getElementById('chart-next').style.visibility = chartWindowEnd < entries.length ? 'visible' : 'hidden';
+
   const maxVal = Math.max(...recent.map(e=>Math.max(e.total, e.base+e.otPay)), 1);
   const W = 320, H = 180, padBottom = 22, padTop = 14;
   const usable = recent.length;
@@ -1460,6 +1483,14 @@ function renderSalaryChart(){
   svg += '</svg>';
   container.innerHTML = svg;
 }
+document.getElementById('chart-prev').addEventListener('click', ()=>{
+  chartWindowEnd = Math.max(CHART_WINDOW, (chartWindowEnd||CHART_WINDOW) - 1);
+  renderSalaryChart();
+});
+document.getElementById('chart-next').addEventListener('click', ()=>{
+  chartWindowEnd = (chartWindowEnd||CHART_WINDOW) + 1;
+  renderSalaryChart();
+});
 
 function renderSummary(){
   document.getElementById('sum-payday').textContent = fmtDate(nextPayday());
