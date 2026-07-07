@@ -712,6 +712,25 @@ function renderLedgerRow(container, doc, ym, labelOverride){
   container.appendChild(row);
 }
 
+function getFullMonthRange(docs){
+  const withYm = docs.filter(d=>d.y && d.mo);
+  if(withYm.length===0) return [];
+  let minKey = Infinity, maxKey = -Infinity, minYm=null, maxYm=null;
+  withYm.forEach(d=>{
+    const k = d.y*100+d.mo;
+    if(k<minKey){ minKey=k; minYm={y:d.y,mo:d.mo}; }
+    if(k>maxKey){ maxKey=k; maxYm={y:d.y,mo:d.mo}; }
+  });
+  const months = [];
+  let y=minYm.y, mo=minYm.mo;
+  while(y<maxYm.y || (y===maxYm.y && mo<=maxYm.mo)){
+    months.push({y,mo});
+    mo++;
+    if(mo>12){ mo=1; y++; }
+  }
+  return months;
+}
+
 function renderMeisaiLists(){
   const allDocs = [...documents, ...driveDocs];
   const salaryDocs = allDocs.filter(d=>d.type==='salary');
@@ -728,14 +747,21 @@ function renderMeisaiLists(){
   const allEl = document.getElementById('meisai-all');
   allEl.innerHTML = '';
   const recentKeys = new Set(recent.map(r=>r.y*100+r.mo));
-  const others = salaryDocs.filter(d=>!d.y || !recentKeys.has(d.y*100+d.mo))
-    .sort((a,b)=> (b.y*100+(b.mo||0)) - (a.y*100+(a.mo||0)));
-  if(others.length===0){
+  const fullRange = getFullMonthRange(salaryDocs).filter(m=>!recentKeys.has(m.y*100+m.mo));
+  if(fullRange.length===0){
     allEl.innerHTML = '<div class="empty">他に明細はありません。</div>';
   }else{
-    others.forEach(d=>{
-      const ym = {y:d.y||'-', mo:d.mo||'-'};
-      renderLedgerRow(allEl, d, ym);
+    const byYear = {};
+    fullRange.forEach(m=>{ (byYear[m.y] = byYear[m.y]||[]).push(m.mo); });
+    Object.keys(byYear).map(Number).sort((a,b)=>b-a).forEach(y=>{
+      const yearHeader = document.createElement('div');
+      yearHeader.style.cssText = 'font-size:12px;font-weight:700;color:var(--text-2);margin:14px 0 4px;';
+      yearHeader.textContent = `${y}年`;
+      allEl.appendChild(yearHeader);
+      byYear[y].sort((a,b)=>b-a).forEach(mo=>{
+        const doc = salaryDocs.find(d=>d.y===y && d.mo===mo);
+        renderLedgerRow(allEl, doc, {y,mo});
+      });
     });
   }
 
