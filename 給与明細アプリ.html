@@ -858,8 +858,6 @@ function serializeSettingsText(){
   const gd = settings.grantDate ? settings.grantDate.replace(/-/g,'') : '';
   const bd1 = settings.bonusDay1!==undefined ? settings.bonusDay1 : (settings.payDay||5);
   const bd2 = settings.bonusDay2!==undefined ? settings.bonusDay2 : (settings.payDay||5);
-  const cm = currentMonthStr();
-  const otNow = otHoursByMonth[cm]!==undefined ? otHoursByMonth[cm] : 0;
   const lines = [];
   lines.push(`Apps:${settings.scriptUrl||''}`);
   lines.push(`folderID:${settings.driveFolderId||''}`);
@@ -875,7 +873,20 @@ function serializeSettingsText(){
   lines.push(`賞与月2:${pad2(settings.bonusMonth2||12)}`);
   lines.push(`賞与日2:${bd2===0?'00(月末)':pad2(bd2)}`);
   lines.push('');
-  lines.push(`今月残業時間:${otNow}`);
+  lines.push('残業時間履歴');
+  Object.keys(otHoursByMonth).sort().forEach(ym=>{
+    lines.push(`${ym.replace('-','')}:${otHoursByMonth[ym]}`);
+  });
+  lines.push('');
+  lines.push('給与実績履歴');
+  Object.keys(payHistory).sort().forEach(ym=>{
+    const p = payHistory[ym];
+    if(p.type==='bonus'){
+      lines.push(`${ym.replace('-','')}:bonus:${p.total||0}:${p.net!==undefined?p.net:(p.total||0)}`);
+    }else{
+      lines.push(`${ym.replace('-','')}:salary:${p.base||0}:${p.otPay||0}:${p.total||0}:${p.net!==undefined?p.net:(p.total||0)}`);
+    }
+  });
   lines.push('');
   const years = Object.keys(leave.byYear||{}).sort((a,b)=>b-a);
   years.forEach(y=>{ lines.push(`${y}有給残:${leave.byYear[y]}`); });
@@ -890,13 +901,15 @@ function serializeSettingsText(){
 
 function parseSettingsText(text){
   const lines = text.split('\n').map(l=>l.trim());
-  const result = { settings:{}, otHours:null, byYear:{}, usage:[] };
-  let inUsage = false;
+  const result = { settings:{}, otHoursByMonth:{}, payHistory:{}, byYear:{}, usage:[] };
+  let section = null;
   lines.forEach(line=>{
     if(!line) return;
-    if(line === '有給使用履歴'){ inUsage = true; return; }
+    if(line === '有給使用履歴'){ section = 'usage'; return; }
+    if(line === '残業時間履歴'){ section = 'ot'; return; }
+    if(line === '給与実績履歴'){ section = 'pay'; return; }
     let m;
-    if(inUsage){
+    if(section === 'usage'){
       m = line.match(/^(\d{8}):(-?\d+(?:\.\d+)?):([^@]*)(?:@(.*))?$/);
       if(m){
         const iso = `${m[1].slice(0,4)}-${m[1].slice(4,6)}-${m[1].slice(6,8)}`;
@@ -908,6 +921,28 @@ function parseSettingsText(text){
           }).filter(c=>c.year && !isNaN(c.amount));
         }
         result.usage.push(entry);
+      }
+      return;
+    }
+    if(section === 'ot'){
+      m = line.match(/^(\d{6}):([\d.]+)$/);
+      if(m){
+        const ym = `${m[1].slice(0,4)}-${m[1].slice(4,6)}`;
+        result.otHoursByMonth[ym] = parseFloat(m[2]);
+      }
+      return;
+    }
+    if(section === 'pay'){
+      m = line.match(/^(\d{6}):bonus:([\d.]+):([\d.]+)$/);
+      if(m){
+        const ym = `${m[1].slice(0,4)}-${m[1].slice(4,6)}`;
+        result.payHistory[ym] = {type:'bonus', total: parseFloat(m[2]), net: parseFloat(m[3])};
+        return;
+      }
+      m = line.match(/^(\d{6}):salary:([\d.]+):([\d.]+):([\d.]+):([\d.]+)$/);
+      if(m){
+        const ym = `${m[1].slice(0,4)}-${m[1].slice(4,6)}`;
+        result.payHistory[ym] = {type:'salary', base: parseFloat(m[2]), otPay: parseFloat(m[3]), total: parseFloat(m[4]), net: parseFloat(m[5])};
       }
       return;
     }
@@ -927,8 +962,6 @@ function parseSettingsText(text){
       result.settings.bonusMonth2 = parseInt(m[1]);
     }else if(m = line.match(/^賞与日2:(\d+)/)){
       result.settings.bonusDay2 = parseInt(m[1]);
-    }else if(m = line.match(/^今月残業時間:([\d.]+)$/)){
-      result.otHours = parseFloat(m[1]);
     }else if(m = line.match(/^(\d{4})有給残:([\d.]+)$/)){
       result.byYear[m[1]] = parseFloat(m[2]);
     }
@@ -960,9 +993,13 @@ async function pullSettingsFromDrive(){
     const parsed = parseSettingsText(data.content);
     Object.assign(settings, parsed.settings);
     saveJSON('settings', settings);
-    if(parsed.otHours!==null){
-      otHoursByMonth[currentMonthStr()] = parsed.otHours;
+    if(Object.keys(parsed.otHoursByMonth).length>0){
+      Object.assign(otHoursByMonth, parsed.otHoursByMonth);
       saveJSON('otHoursByMonth', otHoursByMonth);
+    }
+    if(Object.keys(parsed.payHistory).length>0){
+      Object.assign(payHistory, parsed.payHistory);
+      saveJSON('payHistory', payHistory);
     }
     if(Object.keys(parsed.byYear).length>0){
       leave.byYear = parsed.byYear;
@@ -985,7 +1022,7 @@ async function pullSettingsFromDrive(){
     renderSalaryChart();
     status.textContent = 'Driveの設定を反映しました（' + new Date().toLocaleTimeString('ja-JP') + '）';
     debugEl.style.display = 'block';
-    debugEl.textContent = '--- 取得した生テキスト ---\n' + data.content + '\n\n--- 解析結果 ---\n' + JSON.stringify({settings: parsed.settings, otHours: parsed.otHours, byYear: parsed.byYear, usageCount: parsed.usage.length}, null, 2) + '\n\n--- 適用後の設定値 ---\n' + JSON.stringify({payDay:settings.payDay, closeDay:settings.closeDay, bonusMonth1:settings.bonusMonth1, bonusDay1:settings.bonusDay1, bonusMonth2:settings.bonusMonth2, bonusDay2:settings.bonusDay2, grantDate:settings.grantDate, grantDays:settings.grantDays, byYear: leave.byYear}, null, 2);
+    debugEl.textContent = '--- 取得した生テキスト ---\n' + data.content + '\n\n--- 解析結果 ---\n' + JSON.stringify({settings: parsed.settings, otHoursByMonth: parsed.otHoursByMonth, payHistory: parsed.payHistory, byYear: parsed.byYear, usageCount: parsed.usage.length}, null, 2) + '\n\n--- 適用後の設定値 ---\n' + JSON.stringify({payDay:settings.payDay, closeDay:settings.closeDay, bonusMonth1:settings.bonusMonth1, bonusDay1:settings.bonusDay1, bonusMonth2:settings.bonusMonth2, bonusDay2:settings.bonusDay2, grantDate:settings.grantDate, grantDays:settings.grantDays, byYear: leave.byYear}, null, 2);
   }catch(e){
     status.textContent = '取得に失敗しました：' + e.message;
   }
@@ -1060,7 +1097,7 @@ document.getElementById('man-type').addEventListener('change', ()=>{
   document.getElementById('man-bonus-fields').style.display = isBonus ? 'block' : 'none';
 });
 
-document.getElementById('man-save').addEventListener('click', ()=>{
+document.getElementById('man-save').addEventListener('click', async ()=>{
   const ym = document.getElementById('man-month').value;
   if(!ym){ alert('対象年月を入力してください。'); return; }
   const type = document.getElementById('man-type').value;
@@ -1083,6 +1120,7 @@ document.getElementById('man-save').addEventListener('click', ()=>{
   document.getElementById('man-bonus').value = '';
   document.getElementById('man-total').value = '';
   document.getElementById('man-net').value = '';
+  if(settings.scriptUrl && settings.driveFolderId) await pushSettingsToDrive();
 });
 
 function isoDate(d){
@@ -1336,13 +1374,14 @@ function renderOvertime(){
 }
 document.getElementById('ot-month').addEventListener('change', renderOvertime);
 document.getElementById('ot-hours').addEventListener('input', renderOvertime);
-document.getElementById('ot-save').addEventListener('click', ()=>{
+document.getElementById('ot-save').addEventListener('click', async ()=>{
   const monthStr = document.getElementById('ot-month').value || currentMonthStr();
   otHoursByMonth[monthStr] = parseFloat(document.getElementById('ot-hours').value)||0;
   saveJSON('otHoursByMonth', otHoursByMonth);
   renderOvertime();
   renderSummary();
   renderSalaryChart();
+  if(settings.scriptUrl && settings.driveFolderId) await pushSettingsToDrive();
 });
 
 function renderSalaryChart(){
