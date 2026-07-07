@@ -292,7 +292,9 @@ nav.tabbar button svg{width:20px;height:20px;}
       <button class="x-btn" id="modal-close">×</button>
     </header>
     <div class="frame">
-      <iframe id="modal-iframe" src="" allow="autoplay"></iframe>
+      <div id="modal-viewer" style="width:100%;height:60vh;overflow-y:auto;background:#3a3a38;padding:8px;box-sizing:border-box;">
+        <p style="color:#eee;text-align:center;margin-top:40px;" id="viewer-loading">読み込み中…</p>
+      </div>
     </div>
     <div style="padding:14px 18px;border-top:1px solid var(--border);">
       <button class="btn ghost" id="btn-ocr-open" style="font-size:13px;">この明細を自動読み取り（実験的）</button>
@@ -607,27 +609,67 @@ async function deleteDocument(id){
 }
 
 let currentOcrFile = null;
+async function ensurePdfLib(){
+  if(!window.pdfjsLib){
+    await loadScript('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js');
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  }
+}
+async function renderPdfIntoViewer(bytes, container){
+  await ensurePdfLib();
+  const pdf = await window.pdfjsLib.getDocument({data: bytes.slice(0)}).promise;
+  container.innerHTML = '';
+  const targetWidth = container.clientWidth - 16;
+  for(let p=1; p<=pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const baseViewport = page.getViewport({scale:1});
+    const scale = targetWidth / baseViewport.width;
+    const viewport = page.getViewport({scale});
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.width = '100%';
+    canvas.style.display = 'block';
+    canvas.style.background = '#fff';
+    canvas.style.marginBottom = '8px';
+    canvas.style.borderRadius = '6px';
+    container.appendChild(canvas);
+    await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+  }
+}
 async function openFile(doc, label){
   currentOcrFile = doc;
   document.getElementById('modal-title').textContent = label;
-  document.getElementById('modal-iframe').src = '';
   document.getElementById('ocr-panel').style.display = 'none';
   document.getElementById('ocr-result').style.display = 'none';
   document.getElementById('ocr-status').textContent = '';
   ocrRotation = 0;
   document.getElementById('modal').classList.remove('hidden');
+  const viewer = document.getElementById('modal-viewer');
+  viewer.innerHTML = '<p style="color:#eee;text-align:center;margin-top:40px;">読み込み中…</p>';
   try{
     if(!doc._bytes){ doc._bytes = await fetchFileBytes(doc); }
-    const blob = new Blob([doc._bytes.slice(0)], {type: doc._mimeType || 'application/pdf'});
-    const url = URL.createObjectURL(blob);
-    document.getElementById('modal-iframe').src = url;
+    const mime = doc._mimeType || 'application/pdf';
+    if(mime.includes('image')){
+      const blob = new Blob([doc._bytes.slice(0)], {type: mime});
+      const url = URL.createObjectURL(blob);
+      viewer.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = url;
+      img.style.width = '100%';
+      img.style.display = 'block';
+      img.style.borderRadius = '6px';
+      viewer.appendChild(img);
+    }else{
+      await renderPdfIntoViewer(doc._bytes, viewer);
+    }
   }catch(e){
-    document.getElementById('ocr-status').textContent = 'ファイルの読み込みに失敗しました：' + e.message;
+    viewer.innerHTML = `<p style="color:#f5c2c0;text-align:center;margin-top:40px;padding:0 16px;">表示に失敗しました：${e.message}</p>`;
   }
 }
 document.getElementById('modal-close').addEventListener('click', ()=>{
   document.getElementById('modal').classList.add('hidden');
-  document.getElementById('modal-iframe').src = '';
+  document.getElementById('modal-viewer').innerHTML = '';
 });
 
 function renderLedgerRow(container, doc, ym, labelOverride){
