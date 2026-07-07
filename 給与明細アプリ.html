@@ -331,6 +331,32 @@ nav.tabbar button svg{width:20px;height:20px;}
         <p style="color:#eee;text-align:center;margin-top:40px;" id="viewer-loading">読み込み中…</p>
       </div>
     </div>
+    <div style="padding:16px 18px;border-top:1px solid var(--border);">
+      <div class="section-title">この明細の実績を入力</div>
+      <label class="field">種別</label>
+      <select id="modal-man-type">
+        <option value="salary">給与明細</option>
+        <option value="bonus">賞与明細</option>
+      </select>
+      <label class="field">対象年月</label>
+      <input type="month" id="modal-man-month">
+      <div id="modal-man-salary-fields">
+        <label class="field">基本給</label>
+        <input type="text" inputmode="numeric" class="man-amount" id="modal-man-base">
+        <label class="field">残業代（時間外手当）</label>
+        <input type="text" inputmode="numeric" class="man-amount" id="modal-man-otpay">
+      </div>
+      <div id="modal-man-bonus-fields" style="display:none;">
+        <label class="field">賞与額</label>
+        <input type="text" inputmode="numeric" class="man-amount" id="modal-man-bonus">
+      </div>
+      <label class="field">総支給額（参考・任意）</label>
+      <input type="text" inputmode="numeric" class="man-amount" id="modal-man-total">
+      <label class="field">差引支給額（手取り・グラフに使用）</label>
+      <input type="text" inputmode="numeric" class="man-amount" id="modal-man-net">
+      <button class="btn" id="modal-man-save" style="margin-top:12px;">この内容をグラフに反映</button>
+      <p class="muted" id="modal-man-status" style="margin-top:8px;"></p>
+    </div>
   </div>
 </div>
 
@@ -716,6 +742,8 @@ async function openFile(doc, label){
   currentOcrFile = doc;
   document.getElementById('modal-title').textContent = label;
   document.getElementById('modal').classList.remove('hidden');
+  const ym = (doc.y && doc.mo) ? `${doc.y}-${String(doc.mo).padStart(2,'0')}` : '';
+  fillManualEntryForm('modal-man-', ym, doc);
   const viewer = document.getElementById('modal-viewer');
   viewer.innerHTML = '<p style="color:#eee;text-align:center;margin-top:40px;">読み込み中…</p>';
   try{
@@ -1127,11 +1155,35 @@ function loadScript(src){
   });
 }
 
-document.getElementById('man-type').addEventListener('change', ()=>{
-  const isBonus = document.getElementById('man-type').value === 'bonus';
-  document.getElementById('man-salary-fields').style.display = isBonus ? 'none' : 'block';
-  document.getElementById('man-bonus-fields').style.display = isBonus ? 'block' : 'none';
-});
+function setupManualEntryForm(prefix){
+  const el = id => document.getElementById(prefix+id);
+  el('type').addEventListener('change', ()=>{
+    const isBonus = el('type').value === 'bonus';
+    el('salary-fields').style.display = isBonus ? 'none' : 'block';
+    el('bonus-fields').style.display = isBonus ? 'block' : 'none';
+  });
+  el('save').addEventListener('click', async ()=>{
+    const ym = el('month').value;
+    if(!ym){ alert('対象年月を入力してください。'); return; }
+    const type = el('type').value;
+    const net = parseAmount(el('net').value);
+    if(!payHistory[ym]) payHistory[ym] = {};
+    if(type === 'bonus'){
+      const bonus = parseAmount(el('bonus').value);
+      payHistory[ym].bonus = { total: bonus, net: net || bonus };
+    }else{
+      const base = parseAmount(el('base').value);
+      const otPay = parseAmount(el('otpay').value);
+      const totalField = parseAmount(el('total').value);
+      const total = totalField || (base+otPay);
+      payHistory[ym].salary = { base, otPay, total, net: net || total };
+    }
+    saveJSON('payHistory', payHistory);
+    renderSalaryChart();
+    el('status').textContent = `${ym} の実績をグラフに反映しました。`;
+    if(settings.scriptUrl && settings.driveFolderId) await pushSettingsToDrive();
+  });
+}
 
 function parseAmount(v){
   return parseFloat(String(v).replace(/,/g,'')) || 0;
@@ -1142,32 +1194,24 @@ document.querySelectorAll('.man-amount').forEach(input=>{
     input.value = raw === '' ? '' : parseInt(raw,10).toLocaleString('en-US');
   });
 });
-document.getElementById('man-save').addEventListener('click', async ()=>{
-  const ym = document.getElementById('man-month').value;
-  if(!ym){ alert('対象年月を入力してください。'); return; }
-  const type = document.getElementById('man-type').value;
-  const net = parseAmount(document.getElementById('man-net').value);
-  if(!payHistory[ym]) payHistory[ym] = {};
-  if(type === 'bonus'){
-    const bonus = parseAmount(document.getElementById('man-bonus').value);
-    payHistory[ym].bonus = { total: bonus, net: net || bonus };
-  }else{
-    const base = parseAmount(document.getElementById('man-base').value);
-    const otPay = parseAmount(document.getElementById('man-otpay').value);
-    const totalField = parseAmount(document.getElementById('man-total').value);
-    const total = totalField || (base+otPay);
-    payHistory[ym].salary = { base, otPay, total, net: net || total };
-  }
-  saveJSON('payHistory', payHistory);
-  renderSalaryChart();
-  document.getElementById('man-status').textContent = `${ym} の実績をグラフに反映しました。`;
-  document.getElementById('man-base').value = '';
-  document.getElementById('man-otpay').value = '';
-  document.getElementById('man-bonus').value = '';
-  document.getElementById('man-total').value = '';
-  document.getElementById('man-net').value = '';
-  if(settings.scriptUrl && settings.driveFolderId) await pushSettingsToDrive();
-});
+setupManualEntryForm('man-');
+setupManualEntryForm('modal-man-');
+
+function fillManualEntryForm(prefix, ym, doc){
+  const el = id => document.getElementById(prefix+id);
+  el('month').value = ym || '';
+  const rec = ym ? payHistory[ym] : null;
+  const isBonus = (doc && doc.type==='bonus') || (rec && rec.bonus && !rec.salary);
+  el('type').value = isBonus ? 'bonus' : 'salary';
+  el('salary-fields').style.display = isBonus ? 'none' : 'block';
+  el('bonus-fields').style.display = isBonus ? 'block' : 'none';
+  el('base').value = rec && rec.salary ? rec.salary.base.toLocaleString('en-US') : '';
+  el('otpay').value = rec && rec.salary ? rec.salary.otPay.toLocaleString('en-US') : '';
+  el('total').value = rec && rec.salary ? rec.salary.total.toLocaleString('en-US') : (rec && rec.bonus ? rec.bonus.total.toLocaleString('en-US') : '');
+  el('net').value = rec && rec.salary ? (rec.salary.net!==undefined?rec.salary.net:rec.salary.total).toLocaleString('en-US') : (rec && rec.bonus ? (rec.bonus.net!==undefined?rec.bonus.net:rec.bonus.total).toLocaleString('en-US') : '');
+  el('bonus').value = rec && rec.bonus ? rec.bonus.total.toLocaleString('en-US') : '';
+  el('status').textContent = '';
+}
 
 function isoDate(d){
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
