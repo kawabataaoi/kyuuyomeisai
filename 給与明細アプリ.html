@@ -211,11 +211,13 @@ nav.tabbar button svg{width:20px;height:20px;}
       <textarea id="gas-code" readonly style="width:100%;height:110px;font-family:'JetBrains Mono',monospace;font-size:10px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);" onclick="this.select()"></textarea>
       <button class="btn ghost small" id="btn-copy-gas" style="margin-top:6px;width:100%;">コードをコピー</button>
       <div class="helptext">
-        ② 画面右上「デプロイ」→「新しいデプロイ」→種類は「ウェブアプリ」を選択<br>
-        ③ 「実行するユーザー」＝自分、「アクセスできるユーザー」＝全員　に設定してデプロイ<br>
-        ④ 自分のアカウントで権限を確認（無料・支払い不要）<br>
-        ⑤ 発行された「.../exec」で終わるURLを下に貼り付け
+        ② 左側メニューの「サービス」の「＋」→「Drive API」を選択して追加（画像のOCR読み取りに使います。Cloud Consoleの操作は不要で、この画面内の＋ボタンだけで完結します）<br>
+        ③ 画面右上「デプロイ」→「新しいデプロイ」→種類は「ウェブアプリ」を選択<br>
+        ④ 「実行するユーザー」＝自分、「アクセスできるユーザー」＝全員　に設定してデプロイ<br>
+        ⑤ 自分のアカウントで権限を確認（無料・支払い不要）<br>
+        ⑥ 発行された「.../exec」で終わるURLを下に貼り付け
       </div>
+      <div class="helptext">既にデプロイ済みの方は、コードを最新版に貼り替えて保存 →「サービス」に「Drive API」を追加 →「デプロイを管理」→ 新バージョンとしてデプロイ、でOKです。</div>
       <label class="field">Apps ScriptのURL</label>
       <input type="text" id="set-script-url" placeholder="https://script.google.com/macros/s/xxxx/exec">
       <label class="field">フォルダID</label>
@@ -303,7 +305,7 @@ nav.tabbar button svg{width:20px;height:20px;}
           <button class="btn small outline" id="ocr-rotate-r">回転 ⟳</button>
         </div>
         <canvas id="ocr-canvas" style="width:100%;border:1px solid var(--border);border-radius:8px;"></canvas>
-        <button class="btn" id="ocr-ai-run" style="margin-top:10px;">AIで読み取る（おすすめ）</button>
+        <button class="btn" id="ocr-google-run" style="margin-top:10px;">Googleで読み取る（おすすめ・Drive連携の明細のみ）</button>
         <button class="btn ghost" id="ocr-run" style="margin-top:8px;font-size:12px;">文字認識で読み取る（オフライン・低精度）</button>
         <p class="muted" id="ocr-status" style="margin-top:8px;"></p>
         <div id="ocr-result" style="display:none;margin-top:12px;">
@@ -419,6 +421,14 @@ function doGet(e) {
       doc.getBody().editAsText().setText(content);
       doc.saveAndClose();
       out = {success: true};
+    } else if (action === 'ocr') {
+      var srcFile = DriveApp.getFileById(e.parameter.id);
+      var srcBlob = srcFile.getBlob();
+      var resource = { title: 'ocr_tmp_' + new Date().getTime(), mimeType: MimeType.GOOGLE_DOCS };
+      var ocrFile = Drive.Files.insert(resource, srcBlob, { ocr: true, ocrLanguage: 'ja' });
+      var ocrText = DocumentApp.openById(ocrFile.id).getBody().getText();
+      Drive.Files.remove(ocrFile.id);
+      out = { text: ocrText };
     } else {
       out = {error: 'unknown action'};
     }
@@ -1083,51 +1093,48 @@ function applyOcrFields(fields, rawTextForDebug){
   document.getElementById('ocr-result').style.display = 'block';
 }
 
-document.getElementById('ocr-ai-run').addEventListener('click', async ()=>{
+function populateFromRawText(text){
+  const titleBonus = /賞\s*与\s*支\s*給\s*明\s*細\s*書/.test(text);
+  const titleSalary = /給\s*与\s*支\s*給\s*明\s*細\s*書/.test(text) && !titleBonus;
+  const isBonus = titleBonus || (!titleSalary && /賞\s*与/.test(text) && !/基本給/.test(text));
+  const ym = extractReiwaYearMonth(text);
+  const fields = {
+    type: isBonus ? 'bonus' : 'salary',
+    year: ym ? parseInt(ym.split('-')[0]) : null,
+    month: ym ? parseInt(ym.split('-')[1]) : null,
+    base: extractAmount(text, '基本給'),
+    otPay: extractAmount(text, '時間外手当'),
+    bonus: extractAmount(text, '賞\\s*与'),
+    total: extractAmount(text, '総支給額'),
+    net: extractAmount(text, '差引支給額')
+  };
+  applyOcrFields(fields, text);
+}
+
+document.getElementById('ocr-google-run').addEventListener('click', async ()=>{
   const status = document.getElementById('ocr-status');
   const resultBox = document.getElementById('ocr-result');
-  status.textContent = 'AIに読み取らせています…';
   resultBox.style.display = 'none';
+  if(!currentOcrFile || currentOcrFile.source !== 'drive'){
+    status.textContent = 'この機能はDriveフォルダから読み込んだ明細のみ使えます（手動追加したファイルは非対応です）。';
+    return;
+  }
+  if(!settings.scriptUrl || !settings.driveFolderId){
+    status.textContent = '設定タブでApps ScriptのURLとフォルダIDを設定してください。';
+    return;
+  }
+  status.textContent = 'Googleに読み取らせています…（初回や長い明細は時間がかかることがあります）';
   try{
-    const canvas = document.getElementById('ocr-canvas');
-    const base64 = canvas.toDataURL('image/png').split(',')[1];
-    const prompt = `この画像は日本の給与明細書または賞与支給明細書をスキャンしたものです。画像の向きが多少傾いていても内容を読み取ってください。
-以下の情報をJSON形式のみで出力してください。前置きや説明、コードブロックの記号（\`\`\`）は一切つけず、JSONオブジェクトのみを出力してください。
-
-{
-  "type": "salary（給与支給明細書の場合）またはbonus（賞与支給明細書の場合）",
-  "year": 対象年月の西暦年（数値、令和の場合は令和+2018で変換。支給日ではなく「〇月分」「〇月度」となっている対象月を使うこと）,
-  "month": 対象月（数値1-12）,
-  "base": 基本給の金額（数値、給与明細のみ。無ければnull）,
-  "otPay": 時間外手当・残業代の金額（数値、給与明細のみ。無ければnull）,
-  "bonus": 賞与額（数値、賞与明細のみ。無ければnull）,
-  "total": 総支給額の金額（数値、無ければnull）,
-  "net": 差引支給額（手取り額）の金額（数値、無ければnull）
-}
-金額はカンマを除いた数値で出力してください。`;
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1000,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: "image/png", data: base64 } },
-            { type: "text", text: prompt }
-          ]
-        }]
-      })
-    });
-    const data = await response.json();
-    const textOut = (data.content||[]).map(b=>b.text||'').join('\n');
-    const cleaned = textOut.replace(/```json|```/g,'').trim();
-    const fields = JSON.parse(cleaned);
-    applyOcrFields(fields, textOut);
-    status.textContent = 'AIによる読み取り結果です。念のため金額・年月を確認してください。';
+    const url = `${settings.scriptUrl}?action=ocr&id=${encodeURIComponent(currentOcrFile.id)}`;
+    const data = await jsonpRequest(url);
+    if(data.error){
+      status.textContent = '読み取り失敗：' + data.error + '（Apps Scriptに「Drive API」サービスを追加していない場合はこのエラーになります。設定タブの手順②をご確認ください）';
+      return;
+    }
+    populateFromRawText(data.text || '');
+    status.textContent = 'Googleによる読み取り結果です。念のため金額・年月を確認してください。';
   }catch(e){
-    status.textContent = 'AI読み取りに失敗しました：' + e.message + '（下の「文字認識で読み取る」もお試しください）';
+    status.textContent = '読み取りに失敗しました：' + e.message;
   }
 });
 
@@ -1142,26 +1149,8 @@ document.getElementById('ocr-run').addEventListener('click', async ()=>{
     const worker = await window.Tesseract.createWorker('jpn');
     const { data } = await worker.recognize(canvas);
     await worker.terminate();
-    const text = data.text || '';
-
-    const titleBonus = /賞\s*与\s*支\s*給\s*明\s*細\s*書/.test(text);
-    const titleSalary = /給\s*与\s*支\s*給\s*明\s*細\s*書/.test(text) && !titleBonus;
-    const isBonus = titleBonus || (!titleSalary && /賞\s*与/.test(text) && !/基本給/.test(text));
-    document.getElementById('ocr-type').value = isBonus ? 'bonus' : 'salary';
-    document.getElementById('ocr-salary-fields').style.display = isBonus ? 'none' : 'block';
-    document.getElementById('ocr-bonus-fields').style.display = isBonus ? 'block' : 'none';
-
-    const ym = extractReiwaYearMonth(text);
-    document.getElementById('ocr-month').value = ym || '';
-    document.getElementById('ocr-base').value = extractAmount(text, '基本給') || '';
-    document.getElementById('ocr-otpay').value = extractAmount(text, '時間外手当') || '';
-    document.getElementById('ocr-bonus').value = extractAmount(text, '賞\\s*与') || '';
-    document.getElementById('ocr-total').value = extractAmount(text, '総支給額') || '';
-    document.getElementById('ocr-net').value = extractAmount(text, '差引支給額') || '';
-    document.getElementById('ocr-raw-text').textContent = text;
-
+    populateFromRawText(data.text || '');
     status.textContent = '認識結果です。金額・年月は誤読の可能性があるので確認してください。';
-    resultBox.style.display = 'block';
   }catch(e){
     status.textContent = '読み取りに失敗しました：' + e.message;
   }
