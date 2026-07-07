@@ -1208,14 +1208,10 @@ async function deleteLeaveEntry(item){
 async function applyLeave(sign){
   const days = parseFloat(document.getElementById('yukyu-input-days').value);
   if(!days || days<=0) return;
-  const note = document.getElementById('yukyu-input-note').value.trim();
+  const noteInput = document.getElementById('yukyu-input-note').value.trim();
+  const note = (sign < 0 && !noteInput) ? '私用のため' : noteInput;
   const dateInput = document.getElementById('yukyu-input-date').value;
   const dateStr = dateInput || isoDate(new Date());
-  if(sign < 0 && !note){
-    alert('何に有給を使ったか、理由を入力してください。');
-    document.getElementById('yukyu-input-note').focus();
-    return;
-  }
   let consumedFrom = null;
   if(sign > 0){
     addLeaveGrant(days, parseInt(dateStr.split('-')[0]));
