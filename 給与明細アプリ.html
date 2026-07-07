@@ -200,6 +200,33 @@ nav.tabbar button svg{width:20px;height:20px;}
         <span class="muted" style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--accent);opacity:0.45;display:inline-block;"></span>推定値</span>
       </div>
     </div>
+    <div class="card">
+      <div class="section-title">明細の実績を手入力</div>
+      <p class="muted">明細を見ながら、金額を入力してグラフに反映できます。</p>
+      <label class="field">種別</label>
+      <select id="man-type">
+        <option value="salary">給与明細</option>
+        <option value="bonus">賞与明細</option>
+      </select>
+      <label class="field">対象年月</label>
+      <input type="month" id="man-month">
+      <div id="man-salary-fields">
+        <label class="field">基本給</label>
+        <input type="number" id="man-base">
+        <label class="field">残業代（時間外手当）</label>
+        <input type="number" id="man-otpay">
+      </div>
+      <div id="man-bonus-fields" style="display:none;">
+        <label class="field">賞与額</label>
+        <input type="number" id="man-bonus">
+      </div>
+      <label class="field">総支給額（参考・任意）</label>
+      <input type="number" id="man-total">
+      <label class="field">差引支給額（手取り・グラフに使用）</label>
+      <input type="number" id="man-net">
+      <button class="btn" id="man-save" style="margin-top:12px;">この内容をグラフに反映</button>
+      <p class="muted" id="man-status" style="margin-top:8px;"></p>
+    </div>
   </section>
 
   <!-- 設定タブ -->
@@ -211,13 +238,12 @@ nav.tabbar button svg{width:20px;height:20px;}
       <textarea id="gas-code" readonly style="width:100%;height:110px;font-family:'JetBrains Mono',monospace;font-size:10px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);" onclick="this.select()"></textarea>
       <button class="btn ghost small" id="btn-copy-gas" style="margin-top:6px;width:100%;">コードをコピー</button>
       <div class="helptext">
-        ② 左側メニューの「サービス」の「＋」→「Drive API」を選択して追加（画像のOCR読み取りに使います。Cloud Consoleの操作は不要で、この画面内の＋ボタンだけで完結します）<br>
-        ③ 画面右上「デプロイ」→「新しいデプロイ」→種類は「ウェブアプリ」を選択<br>
-        ④ 「実行するユーザー」＝自分、「アクセスできるユーザー」＝全員　に設定してデプロイ<br>
-        ⑤ 自分のアカウントで権限を確認（無料・支払い不要）<br>
-        ⑥ 発行された「.../exec」で終わるURLを下に貼り付け
+        ② 画面右上「デプロイ」→「新しいデプロイ」→種類は「ウェブアプリ」を選択<br>
+        ③ 「実行するユーザー」＝自分、「アクセスできるユーザー」＝全員　に設定してデプロイ<br>
+        ④ 自分のアカウントで権限を確認（無料・支払い不要）<br>
+        ⑤ 発行された「.../exec」で終わるURLを下に貼り付け
       </div>
-      <div class="helptext">既にデプロイ済みの方は、コードを最新版に貼り替えて保存 →「サービス」に「Drive API」を追加 →「デプロイを管理」→ 新バージョンとしてデプロイ、でOKです。</div>
+      <div class="helptext">既にデプロイ済みの方は、コードを最新版に貼り替えて保存 →「デプロイを管理」→ 新バージョンとしてデプロイ、でOKです。</div>
       <label class="field">Apps ScriptのURL</label>
       <input type="text" id="set-script-url" placeholder="https://script.google.com/macros/s/xxxx/exec">
       <label class="field">フォルダID</label>
@@ -296,48 +322,6 @@ nav.tabbar button svg{width:20px;height:20px;}
         <p style="color:#eee;text-align:center;margin-top:40px;" id="viewer-loading">読み込み中…</p>
       </div>
     </div>
-    <div style="padding:14px 18px;border-top:1px solid var(--border);">
-      <button class="btn ghost" id="btn-ocr-open" style="font-size:13px;">この明細を自動読み取り（実験的）</button>
-      <div id="ocr-panel" style="display:none;margin-top:12px;">
-        <div id="ocr-preview-section">
-          <p class="muted">向きが違う場合は回転してから実行してください。文字認識には数十秒かかることがあります。</p>
-          <div class="row" style="justify-content:center;gap:8px;margin-bottom:10px;">
-            <button class="btn small outline" id="ocr-rotate-l">⟲ 回転</button>
-            <button class="btn small outline" id="ocr-rotate-r">回転 ⟳</button>
-          </div>
-          <canvas id="ocr-canvas" style="width:100%;border:1px solid var(--border);border-radius:8px;"></canvas>
-          <button class="btn" id="ocr-google-run" style="margin-top:10px;">Googleで読み取る（おすすめ・Drive連携の明細のみ）</button>
-          <button class="btn ghost" id="ocr-run" style="margin-top:8px;font-size:12px;">文字認識で読み取る（オフライン・低精度）</button>
-        </div>
-        <p class="muted" id="ocr-status" style="margin-top:8px;"></p>
-        <div id="ocr-result" style="display:none;margin-top:12px;">
-          <label class="field">種別</label>
-          <select id="ocr-type">
-            <option value="salary">給与明細</option>
-            <option value="bonus">賞与明細</option>
-          </select>
-          <label class="field">対象年月</label>
-          <input type="month" id="ocr-month">
-          <div id="ocr-salary-fields">
-            <label class="field">基本給</label>
-            <input type="number" id="ocr-base">
-            <label class="field">残業代（時間外手当）</label>
-            <input type="number" id="ocr-otpay">
-          </div>
-          <div id="ocr-bonus-fields" style="display:none;">
-            <label class="field">賞与額</label>
-            <input type="number" id="ocr-bonus">
-          </div>
-          <label class="field">総支給額（参考）</label>
-          <input type="number" id="ocr-total">
-          <label class="field">差引支給額（手取り・グラフに使用）</label>
-          <input type="number" id="ocr-net">
-          <button class="btn" id="ocr-save" style="margin-top:12px;">この内容をグラフに反映</button>
-          <button class="link-btn" id="btn-show-ocr-raw" type="button">認識結果の生テキストを表示</button>
-          <pre id="ocr-raw-text" style="display:none;white-space:pre-wrap;font-size:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:8px;max-height:200px;overflow:auto;"></pre>
-        </div>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -367,7 +351,6 @@ let otHoursByMonth = loadJSON('otHoursByMonth', {});
 let payHistory = loadJSON('payHistory', {});
 let documents = loadJSON('documents', []);
 let driveDocs = [];
-let ocrRotation = 0;
 
 const GAS_CODE = `var SETTINGS_DOC_NAME = '給与明細設定値';
 
@@ -423,27 +406,6 @@ function doGet(e) {
       doc.getBody().editAsText().setText(content);
       doc.saveAndClose();
       out = {success: true};
-    } else if (action === 'ocr') {
-      var srcFile = DriveApp.getFileById(e.parameter.id);
-      var srcBlob = srcFile.getBlob();
-      var resource = { name: 'ocr_tmp_' + new Date().getTime(), mimeType: MimeType.GOOGLE_DOCS };
-      var ocrFile = Drive.Files.create(resource, srcBlob, { ocrLanguage: 'ja' });
-      var ocrBody = DocumentApp.openById(ocrFile.id).getBody();
-      var ocrText = ocrBody.getText();
-      var cells = [];
-      var tables = ocrBody.getTables();
-      for (var ti = 0; ti < tables.length; ti++) {
-        var table = tables[ti];
-        for (var ri = 0; ri < table.getNumRows(); ri++) {
-          var row = table.getRow(ri);
-          for (var ci = 0; ci < row.getNumCells(); ci++) {
-            var cellText = row.getCell(ci).getText();
-            if (cellText && cellText.trim() !== '') cells.push(cellText);
-          }
-        }
-      }
-      try { Drive.Files.remove(ocrFile.id); } catch (delErr) {}
-      out = { text: ocrText, cells: cells };
     } else {
       out = {error: 'unknown action'};
     }
@@ -676,11 +638,6 @@ async function renderPdfIntoViewer(bytes, container){
 async function openFile(doc, label){
   currentOcrFile = doc;
   document.getElementById('modal-title').textContent = label;
-  document.getElementById('ocr-panel').style.display = 'none';
-  document.getElementById('ocr-preview-section').style.display = 'block';
-  document.getElementById('ocr-result').style.display = 'none';
-  document.getElementById('ocr-status').textContent = '';
-  ocrRotation = 0;
   document.getElementById('modal').classList.remove('hidden');
   const viewer = document.getElementById('modal-viewer');
   viewer.innerHTML = '<p style="color:#eee;text-align:center;margin-top:40px;">読み込み中…</p>';
@@ -1007,234 +964,36 @@ function loadScript(src){
     document.head.appendChild(s);
   });
 }
-let libsReady = null;
-function ensureOcrLibs(){
-  if(libsReady) return libsReady;
-  libsReady = (async ()=>{
-    if(!window.pdfjsLib){
-      await loadScript('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js');
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-    }
-    if(!window.Tesseract){
-      await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
-    }
-  })();
-  return libsReady;
-}
 
-async function fetchFileBytes(doc){
-  if(doc.source === 'drive'){
-    const url = `${settings.scriptUrl}?action=file&id=${encodeURIComponent(doc.id)}`;
-    const data = await jsonpRequest(url);
-    if(data.error) throw new Error(data.error);
-    doc._mimeType = data.mimeType;
-    return base64ToArrayBuffer(data.base64);
-  }
-  const blob = await idbGet(doc.id);
-  if(!blob) throw new Error('ローカルに保存されたファイルが見つかりません');
-  doc._mimeType = blob.type;
-  return await blob.arrayBuffer();
-}
-
-async function renderOcrPreview(){
-  const status = document.getElementById('ocr-status');
-  try{
-    await ensureOcrLibs();
-    if(!currentOcrFile){ return; }
-    if(!currentOcrFile._bytes){
-      status.textContent = 'ファイルを読み込んでいます…';
-      currentOcrFile._bytes = await fetchFileBytes(currentOcrFile);
-    }
-    const loadingTask = window.pdfjsLib.getDocument({data: currentOcrFile._bytes.slice(0)});
-    const pdf = await loadingTask.promise;
-    const page = await pdf.getPage(1);
-    const viewport = page.getViewport({scale: 1.6, rotation: ocrRotation});
-    const canvas = document.getElementById('ocr-canvas');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    const ctx = canvas.getContext('2d');
-    await page.render({canvasContext: ctx, viewport}).promise;
-    status.textContent = '向きを確認し、正しければ「文字を読み取る」を押してください。';
-  }catch(e){
-    status.textContent = 'PDFの表示に失敗しました：' + e.message;
-  }
-}
-
-document.getElementById('btn-ocr-open').addEventListener('click', async ()=>{
-  const panel = document.getElementById('ocr-panel');
-  panel.style.display = panel.style.display==='none' ? 'block' : 'none';
-  if(panel.style.display==='block'){
-    document.getElementById('ocr-status').textContent = '読み込み中…';
-    panel.scrollIntoView({behavior:'smooth', block:'start'});
-    await renderOcrPreview();
-    panel.scrollIntoView({behavior:'smooth', block:'start'});
-  }
-});
-document.getElementById('ocr-rotate-l').addEventListener('click', ()=>{
-  ocrRotation = (ocrRotation + 270) % 360;
-  renderOcrPreview();
-});
-document.getElementById('ocr-rotate-r').addEventListener('click', ()=>{
-  ocrRotation = (ocrRotation + 90) % 360;
-  renderOcrPreview();
+document.getElementById('man-type').addEventListener('change', ()=>{
+  const isBonus = document.getElementById('man-type').value === 'bonus';
+  document.getElementById('man-salary-fields').style.display = isBonus ? 'none' : 'block';
+  document.getElementById('man-bonus-fields').style.display = isBonus ? 'block' : 'none';
 });
 
-function extractAmount(text, label){
-  const re = new RegExp(label + '[^0-9]{0,15}([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{2,7})');
-  const m = text.match(re);
-  if(!m) return null;
-  const n = parseInt(m[1].replace(/,/g,''), 10);
-  return isNaN(n) ? null : n;
-}
-function extractAmountFromCells(cells, label){
-  if(!cells || !cells.length) return null;
-  const labelRe = new RegExp(label);
-  for(const cell of cells){
-    if(labelRe.test(cell)){
-      const m = cell.match(/([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{2,7})/);
-      if(m) return parseInt(m[1].replace(/,/g,''), 10);
-    }
-  }
-  return null;
-}
-function extractReiwaYearMonth(text){
-  const head = text.split('（')[0].split('(')[0];
-  const m = head.match(/令和\s*(\d+)\s*年\s*(\d+)\s*月/) || text.match(/令和\s*(\d+)\s*年\s*(\d+)\s*月/);
-  if(!m) return null;
-  const y = 2018 + parseInt(m[1]);
-  const mo = parseInt(m[2]);
-  return `${y}-${String(mo).padStart(2,'0')}`;
-}
-
-function applyOcrFields(fields, rawTextForDebug){
-  const isBonus = fields.type === 'bonus';
-  document.getElementById('ocr-type').value = isBonus ? 'bonus' : 'salary';
-  document.getElementById('ocr-salary-fields').style.display = isBonus ? 'none' : 'block';
-  document.getElementById('ocr-bonus-fields').style.display = isBonus ? 'block' : 'none';
-  if(fields.year && fields.month){
-    document.getElementById('ocr-month').value = `${fields.year}-${String(fields.month).padStart(2,'0')}`;
-  }
-  document.getElementById('ocr-base').value = fields.base ?? '';
-  document.getElementById('ocr-otpay').value = fields.otPay ?? '';
-  document.getElementById('ocr-bonus').value = fields.bonus ?? '';
-  document.getElementById('ocr-total').value = fields.total ?? '';
-  document.getElementById('ocr-net').value = fields.net ?? '';
-  if(rawTextForDebug!==undefined) document.getElementById('ocr-raw-text').textContent = rawTextForDebug;
-  document.getElementById('ocr-result').style.display = 'block';
-}
-
-function populateFromRawText(text, cells){
-  const titleBonus = /賞\s*与\s*支\s*給\s*明\s*細\s*書/.test(text);
-  const titleSalary = /給\s*与\s*支\s*給\s*明\s*細\s*書/.test(text) && !titleBonus;
-  const isBonus = titleBonus || (!titleSalary && /賞\s*与/.test(text) && !/基本給/.test(text));
-  const ym = extractReiwaYearMonth(text);
-  const getAmt = (label) => {
-    const fromCell = extractAmountFromCells(cells, label);
-    return fromCell !== null ? fromCell : extractAmount(text, label);
-  };
-  const fields = {
-    type: isBonus ? 'bonus' : 'salary',
-    year: ym ? parseInt(ym.split('-')[0]) : null,
-    month: ym ? parseInt(ym.split('-')[1]) : null,
-    base: getAmt('基本給'),
-    otPay: getAmt('時間外手当'),
-    bonus: getAmt('賞\\s*与'),
-    total: getAmt('総支給額'),
-    net: getAmt('差引支給額')
-  };
-  const debugText = cells && cells.length ? text + '\n\n--- セル一覧 ---\n' + cells.join('\n---\n') : text;
-  applyOcrFields(fields, debugText);
-}
-
-async function runGoogleOcr(){
-  const status = document.getElementById('ocr-status');
-  const resultBox = document.getElementById('ocr-result');
-  resultBox.style.display = 'none';
-  if(!currentOcrFile || currentOcrFile.source !== 'drive'){
-    status.textContent = 'この機能はDriveフォルダから読み込んだ明細のみ使えます（手動追加したファイルは非対応です）。';
-    return;
-  }
-  if(!settings.scriptUrl || !settings.driveFolderId){
-    status.textContent = '設定タブでApps ScriptのURLとフォルダIDを設定してください。';
-    return;
-  }
-  status.textContent = 'Googleに読み取らせています…（初回や長い明細は時間がかかることがあります）';
-  try{
-    const url = `${settings.scriptUrl}?action=ocr&id=${encodeURIComponent(currentOcrFile.id)}`;
-    const data = await jsonpRequest(url);
-    if(data.error){
-      status.textContent = '読み取り失敗：' + data.error + '（Apps Scriptに「Drive API」サービスを追加していない場合はこのエラーになります。設定タブの手順②をご確認ください）';
-      return;
-    }
-    populateFromRawText(data.text || '', data.cells || []);
-    status.textContent = 'Googleによる読み取り結果です。念のため金額・年月を確認してください。';
-  }catch(e){
-    status.textContent = '読み取りに失敗しました：' + e.message;
-  }
-}
-document.getElementById('ocr-google-run').addEventListener('click', runGoogleOcr);
-
-async function quickGoogleRead(doc, label){
-  currentOcrFile = doc;
-  document.getElementById('modal-title').textContent = label + '（AI読取）';
-  document.getElementById('modal').classList.remove('hidden');
-  const viewer = document.getElementById('modal-viewer');
-  viewer.innerHTML = '<p style="color:#eee;text-align:center;margin-top:40px;padding:0 16px;">PDFのプレビューは省略して、Googleに直接読み取らせています…</p>';
-  document.getElementById('ocr-panel').style.display = 'block';
-  document.getElementById('ocr-preview-section').style.display = 'none';
-  document.getElementById('ocr-result').style.display = 'none';
-  document.getElementById('ocr-status').textContent = '';
-  await runGoogleOcr();
-}
-
-document.getElementById('ocr-run').addEventListener('click', async ()=>{
-  const status = document.getElementById('ocr-status');
-  const resultBox = document.getElementById('ocr-result');
-  status.textContent = '文字を認識しています…（初回はモデル取得のため時間がかかります）';
-  resultBox.style.display = 'none';
-  try{
-    await ensureOcrLibs();
-    const canvas = document.getElementById('ocr-canvas');
-    const worker = await window.Tesseract.createWorker('jpn');
-    const { data } = await worker.recognize(canvas);
-    await worker.terminate();
-    populateFromRawText(data.text || '');
-    status.textContent = '認識結果です。金額・年月は誤読の可能性があるので確認してください。';
-  }catch(e){
-    status.textContent = '読み取りに失敗しました：' + e.message;
-  }
-});
-document.getElementById('btn-show-ocr-raw').addEventListener('click', ()=>{
-  const el = document.getElementById('ocr-raw-text');
-  const showing = el.style.display !== 'none';
-  el.style.display = showing ? 'none' : 'block';
-  document.getElementById('btn-show-ocr-raw').textContent = showing ? '認識結果の生テキストを表示' : '閉じる';
-});
-
-document.getElementById('ocr-type').addEventListener('change', ()=>{
-  const isBonus = document.getElementById('ocr-type').value === 'bonus';
-  document.getElementById('ocr-salary-fields').style.display = isBonus ? 'none' : 'block';
-  document.getElementById('ocr-bonus-fields').style.display = isBonus ? 'block' : 'none';
-});
-
-document.getElementById('ocr-save').addEventListener('click', ()=>{
-  const ym = document.getElementById('ocr-month').value;
+document.getElementById('man-save').addEventListener('click', ()=>{
+  const ym = document.getElementById('man-month').value;
   if(!ym){ alert('対象年月を入力してください。'); return; }
-  const type = document.getElementById('ocr-type').value;
-  const net = parseFloat(document.getElementById('ocr-net').value)||0;
+  const type = document.getElementById('man-type').value;
+  const net = parseFloat(document.getElementById('man-net').value)||0;
   if(type === 'bonus'){
-    const bonus = parseFloat(document.getElementById('ocr-bonus').value)||0;
+    const bonus = parseFloat(document.getElementById('man-bonus').value)||0;
     payHistory[ym] = { type:'bonus', total: bonus, net: net || bonus };
   }else{
-    const base = parseFloat(document.getElementById('ocr-base').value)||0;
-    const otPay = parseFloat(document.getElementById('ocr-otpay').value)||0;
-    const totalField = parseFloat(document.getElementById('ocr-total').value)||0;
+    const base = parseFloat(document.getElementById('man-base').value)||0;
+    const otPay = parseFloat(document.getElementById('man-otpay').value)||0;
+    const totalField = parseFloat(document.getElementById('man-total').value)||0;
     const total = totalField || (base+otPay);
     payHistory[ym] = { type:'salary', base, otPay, total, net: net || total };
   }
   saveJSON('payHistory', payHistory);
   renderSalaryChart();
-  document.getElementById('ocr-status').textContent = `${ym} の明細をグラフに反映しました。`;
+  document.getElementById('man-status').textContent = `${ym} の実績をグラフに反映しました。`;
+  document.getElementById('man-base').value = '';
+  document.getElementById('man-otpay').value = '';
+  document.getElementById('man-bonus').value = '';
+  document.getElementById('man-total').value = '';
+  document.getElementById('man-net').value = '';
 });
 
 function isoDate(d){
