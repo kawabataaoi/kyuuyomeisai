@@ -635,6 +635,19 @@ async function renderPdfIntoViewer(bytes, container){
     await page.render({canvasContext: canvas.getContext('2d'), viewport: renderViewport}).promise;
   }
 }
+async function fetchFileBytes(doc){
+  if(doc.source === 'drive'){
+    const url = `${settings.scriptUrl}?action=file&id=${encodeURIComponent(doc.id)}`;
+    const data = await jsonpRequest(url);
+    if(data.error) throw new Error(data.error);
+    doc._mimeType = data.mimeType;
+    return base64ToArrayBuffer(data.base64);
+  }
+  const blob = await idbGet(doc.id);
+  if(!blob) throw new Error('ローカルに保存されたファイルが見つかりません');
+  doc._mimeType = blob.type;
+  return await blob.arrayBuffer();
+}
 async function openFile(doc, label){
   currentOcrFile = doc;
   document.getElementById('modal-title').textContent = label;
@@ -672,14 +685,12 @@ function renderLedgerRow(container, doc, ym, labelOverride){
   if(doc){
     row.className = 'ledger-row';
     const delBtn = doc.source==='drive' ? '' : `<button class="x-btn" style="font-size:16px;" data-del="${doc.id}">×</button>`;
-    const quickBtn = doc.source==='drive' ? `<button class="btn ghost small" style="font-size:11px;padding:6px 10px;" data-quick="${doc.id}">AI読取</button>` : '';
     row.innerHTML = `
       <div class="dot"></div>
       <div class="info">
         <div class="m">${label}</div>
         <div class="f">${doc.name}${doc.source==='drive' ? '（Drive）' : ''}</div>
       </div>
-      ${quickBtn}
       <span class="tag ok">閲覧</span>
       ${delBtn}
     `;
@@ -687,8 +698,6 @@ function renderLedgerRow(container, doc, ym, labelOverride){
     row.querySelector('.tag').addEventListener('click', ()=>openFile(doc, label));
     const delEl = row.querySelector('[data-del]');
     if(delEl) delEl.addEventListener('click', (ev)=>{ ev.stopPropagation(); deleteDocument(doc.id); });
-    const quickEl = row.querySelector('[data-quick]');
-    if(quickEl) quickEl.addEventListener('click', (ev)=>{ ev.stopPropagation(); quickGoogleRead(doc, label); });
   }else{
     row.className = 'ledger-row missing';
     row.innerHTML = `
