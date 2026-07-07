@@ -1169,23 +1169,12 @@ function renderLeave(){
   });
 }
 
-function recomputeByYearFromLog(){
-  leave.byYear = {};
-  const sorted = [...(leave.log||[])].sort((a,b)=>a.date.localeCompare(b.date));
-  sorted.forEach(e=>{
-    if(e.delta>0){
-      addLeaveGrant(e.delta, parseInt(e.date.split('-')[0]));
-    }else{
-      deductLeave(-e.delta);
-    }
-  });
-}
-
 async function deleteLeaveEntry(item){
   if(!confirm(`「${item.note||(item.delta>0?'付与':'使用')}」（${isoToDisplay(item.date)}・${item.delta>0?'+':''}${item.delta}日）を削除しますか？`)) return;
   const idx = leave.log.indexOf(item);
   if(idx>-1) leave.log.splice(idx,1);
-  recomputeByYearFromLog();
+  const y = String(parseInt(item.date.split('-')[0]));
+  leave.byYear[y] = Math.round(((leave.byYear[y]||0) - item.delta)*10)/10;
   ensureRecentYearKeys();
   saveJSON('leave', leave);
   renderLeave();
