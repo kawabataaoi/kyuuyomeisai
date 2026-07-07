@@ -959,6 +959,7 @@ async function pullSettingsFromDrive(){
     if(Object.keys(parsed.byYear).length>0){
       leave.byYear = parsed.byYear;
     }
+    ensureRecentYearKeys();
     const grants = (leave.log||[]).filter(e=>e.delta>0);
     const localUsage = (leave.log||[]).filter(e=>e.delta<0);
     const usageKey = e => `${e.date}|${e.delta}|${e.note}`;
@@ -1092,6 +1093,14 @@ function cleanupExpiredLeaveYears(){
   });
   return changed;
 }
+function ensureRecentYearKeys(){
+  const cy = new Date().getFullYear();
+  let changed = false;
+  [cy, cy-1].forEach(y=>{
+    if(leave.byYear[String(y)] === undefined){ leave.byYear[String(y)] = 0; changed = true; }
+  });
+  return changed;
+}
 function totalLeaveBalance(){
   return Math.round(Object.values(leave.byYear||{}).reduce((s,v)=>s+v,0)*10)/10;
 }
@@ -1131,6 +1140,7 @@ function checkAndApplyScheduledGrant(){
     changed = true;
   }
   if(cleanupExpiredLeaveYears()) changed = true;
+  if(ensureRecentYearKeys()) changed = true;
   if(changed){
     saveJSON('leave', leave);
     saveJSON('settings', settings);
@@ -1176,6 +1186,7 @@ async function deleteLeaveEntry(item){
   const idx = leave.log.indexOf(item);
   if(idx>-1) leave.log.splice(idx,1);
   recomputeByYearFromLog();
+  ensureRecentYearKeys();
   saveJSON('leave', leave);
   renderLeave();
   renderSummary();
@@ -1202,6 +1213,7 @@ async function applyLeave(sign){
     deductLeave(days);
   }
   leave.log.push({date: dateStr, delta: sign*days, note});
+  ensureRecentYearKeys();
   saveJSON('leave', leave);
   renderLeave();
   renderSummary();
@@ -1383,6 +1395,7 @@ function renderSummary(){
 }
 
 document.getElementById('yukyu-input-date').value = isoDate(new Date());
+ensureRecentYearKeys();
 renderLeave();
 renderSummary();
 renderSalaryChart();
