@@ -1517,7 +1517,7 @@ function renderSalaryChart(){
     }
     const bonus = rec.bonus ? { total: rec.bonus.total||0, net: (rec.bonus.net!==undefined ? rec.bonus.net : (rec.bonus.total||0)) } : null;
     const isGap = !salary && !bonus;
-    return {m, key:k, salary, bonus, isGap, gapBase: settingsBase};
+    return {y, m, key:k, salary, bonus, isGap, gapBase: settingsBase};
   });
 
   if(chartWindowEnd === null || chartWindowEnd > entries.length) chartWindowEnd = entries.length;
@@ -1537,7 +1537,7 @@ function renderSalaryChart(){
   const GRID_STEP = 50000;
   const maxVal = Math.ceil(maxRaw / GRID_STEP) * GRID_STEP || GRID_STEP;
 
-  const W = 320, H = 190, padBottom = 22, padTop = 14, padLeft = 30;
+  const W = 320, H = 196, padBottom = 28, padTop = 14, padLeft = 30;
   const usable = recent.length;
   const gapX = 12;
   const plotW = W - padLeft - 6;
@@ -1585,7 +1585,10 @@ function renderSalaryChart(){
       }
     }
     const labelColor = e.isGap ? '#D64545' : 'var(--text-2)';
-    svg += `<text x="${slotX+barW/2}" y="${H-6}" text-anchor="middle" font-size="10" style="fill:${labelColor};font-weight:${e.isGap?700:400};">${monthLabel}</text>`;
+    svg += `<text x="${slotX+barW/2}" y="${H-14}" text-anchor="middle" font-size="10" style="fill:${labelColor};font-weight:${e.isGap?700:400};">${monthLabel}</text>`;
+    if(i===0 || e.m===1){
+      svg += `<text x="${slotX+barW/2}" y="${H-4}" text-anchor="middle" font-size="8" style="fill:var(--text-3);">${e.y}年</text>`;
+    }
   });
   svg += '</svg>';
   container.innerHTML = svg;
