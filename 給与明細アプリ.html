@@ -207,7 +207,7 @@ nav.tabbar button svg{width:20px;height:20px;}
         <span class="muted" style="display:flex;align-items:center;gap:6px;font-size:11px;"><span style="width:14px;height:0;border-top:2px dashed var(--text);display:inline-block;"></span>総支給額</span>
         <span class="muted" style="display:flex;align-items:center;gap:6px;font-size:11px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--money);display:inline-block;"></span>賞与</span>
       </div>
-      <p class="muted" style="margin-top:8px;font-size:11px;">色が薄い月は残業時間からの推定値、濃い月は明細から入力した実績です。</p>
+      <p class="muted" style="margin-top:8px;font-size:11px;">色が薄い月は残業時間からの推定値、濃い月は明細から入力した実績です。同じ月に給与と賞与の両方がある場合は横に並べて表示します。縦の目盛りは5万円ごとです。</p>
     </div>
     <div class="card">
       <div class="section-title">明細の実績を手入力</div>
@@ -358,6 +358,18 @@ if(!leave.byYear){
 }
 let otHoursByMonth = loadJSON('otHoursByMonth', {});
 let payHistory = loadJSON('payHistory', {});
+(function migratePayHistory(){
+  let changed = false;
+  Object.keys(payHistory).forEach(ym=>{
+    const v = payHistory[ym];
+    if(v && v.type){
+      const {type, ...rest} = v;
+      payHistory[ym] = { [type]: rest };
+      changed = true;
+    }
+  });
+  if(changed) saveJSON('payHistory', payHistory);
+})();
 let documents = loadJSON('documents', []);
 let driveDocs = [];
 
@@ -875,6 +887,10 @@ function serializeSettingsText(){
   lines.push(`給料日:${settings.payDay||5}`);
   lines.push(`締日:${settings.closeDay||0}`);
   lines.push('');
+  lines.push(`基本給:${settings.baseSalary||0}`);
+  lines.push(`所定労働時間:${settings.standardHours||0}`);
+  lines.push(`残業割増率:${settings.otRate||1.25}`);
+  lines.push('');
   lines.push(`賞与月1:${pad2(settings.bonusMonth1||8)}`);
   lines.push(`賞与日1:${bd1===0?'00(月末)':pad2(bd1)}`);
   lines.push(`賞与月2:${pad2(settings.bonusMonth2||12)}`);
@@ -888,10 +904,13 @@ function serializeSettingsText(){
   lines.push('給与実績履歴');
   Object.keys(payHistory).sort().forEach(ym=>{
     const p = payHistory[ym];
-    if(p.type==='bonus'){
-      lines.push(`${ym.replace('-','')}:bonus:${p.total||0}:${p.net!==undefined?p.net:(p.total||0)}`);
-    }else{
-      lines.push(`${ym.replace('-','')}:salary:${p.base||0}:${p.otPay||0}:${p.total||0}:${p.net!==undefined?p.net:(p.total||0)}`);
+    if(p.salary){
+      const s = p.salary;
+      lines.push(`${ym.replace('-','')}:salary:${s.base||0}:${s.otPay||0}:${s.total||0}:${s.net!==undefined?s.net:(s.total||0)}`);
+    }
+    if(p.bonus){
+      const b = p.bonus;
+      lines.push(`${ym.replace('-','')}:bonus:${b.total||0}:${b.net!==undefined?b.net:(b.total||0)}`);
     }
   });
   lines.push('');
@@ -943,13 +962,15 @@ function parseSettingsText(text){
       m = line.match(/^(\d{6}):bonus:([\d.]+):([\d.]+)$/);
       if(m){
         const ym = `${m[1].slice(0,4)}-${m[1].slice(4,6)}`;
-        result.payHistory[ym] = {type:'bonus', total: parseFloat(m[2]), net: parseFloat(m[3])};
+        if(!result.payHistory[ym]) result.payHistory[ym] = {};
+        result.payHistory[ym].bonus = {total: parseFloat(m[2]), net: parseFloat(m[3])};
         return;
       }
       m = line.match(/^(\d{6}):salary:([\d.]+):([\d.]+):([\d.]+):([\d.]+)$/);
       if(m){
         const ym = `${m[1].slice(0,4)}-${m[1].slice(4,6)}`;
-        result.payHistory[ym] = {type:'salary', base: parseFloat(m[2]), otPay: parseFloat(m[3]), total: parseFloat(m[4]), net: parseFloat(m[5])};
+        if(!result.payHistory[ym]) result.payHistory[ym] = {};
+        result.payHistory[ym].salary = {base: parseFloat(m[2]), otPay: parseFloat(m[3]), total: parseFloat(m[4]), net: parseFloat(m[5])};
       }
       return;
     }
@@ -961,6 +982,12 @@ function parseSettingsText(text){
       result.settings.payDay = parseInt(m[1]);
     }else if(m = line.match(/^締日:(\d+)$/)){
       result.settings.closeDay = parseInt(m[1]);
+    }else if(m = line.match(/^基本給:([\d.]+)$/)){
+      result.settings.baseSalary = parseFloat(m[1]);
+    }else if(m = line.match(/^所定労働時間:([\d.]+)$/)){
+      result.settings.standardHours = parseFloat(m[1]);
+    }else if(m = line.match(/^残業割増率:([\d.]+)$/)){
+      result.settings.otRate = parseFloat(m[1]);
     }else if(m = line.match(/^賞与月1:(\d+)$/)){
       result.settings.bonusMonth1 = parseInt(m[1]);
     }else if(m = line.match(/^賞与日1:(\d+)/)){
@@ -1005,7 +1032,9 @@ async function pullSettingsFromDrive(){
       saveJSON('otHoursByMonth', otHoursByMonth);
     }
     if(Object.keys(parsed.payHistory).length>0){
-      Object.assign(payHistory, parsed.payHistory);
+      Object.keys(parsed.payHistory).forEach(ym=>{
+        payHistory[ym] = Object.assign({}, payHistory[ym]||{}, parsed.payHistory[ym]);
+      });
       saveJSON('payHistory', payHistory);
     }
     if(Object.keys(parsed.byYear).length>0){
@@ -1118,15 +1147,16 @@ document.getElementById('man-save').addEventListener('click', async ()=>{
   if(!ym){ alert('対象年月を入力してください。'); return; }
   const type = document.getElementById('man-type').value;
   const net = parseAmount(document.getElementById('man-net').value);
+  if(!payHistory[ym]) payHistory[ym] = {};
   if(type === 'bonus'){
     const bonus = parseAmount(document.getElementById('man-bonus').value);
-    payHistory[ym] = { type:'bonus', total: bonus, net: net || bonus };
+    payHistory[ym].bonus = { total: bonus, net: net || bonus };
   }else{
     const base = parseAmount(document.getElementById('man-base').value);
     const otPay = parseAmount(document.getElementById('man-otpay').value);
     const totalField = parseAmount(document.getElementById('man-total').value);
     const total = totalField || (base+otPay);
-    payHistory[ym] = { type:'salary', base, otPay, total, net: net || total };
+    payHistory[ym].salary = { base, otPay, total, net: net || total };
   }
   saveJSON('payHistory', payHistory);
   renderSalaryChart();
@@ -1421,31 +1451,31 @@ function renderSalaryChart(){
   const std = settings.standardHours || 0;
   const rate = settings.otRate || 1.25;
 
-  const keys = new Set([...Object.keys(otHoursByMonth), ...Object.keys(payHistory)]);
-  if(keys.size===0 || (!settingsBase && Object.keys(payHistory).length===0)){
+  const hasAnyData = Object.keys(otHoursByMonth).length>0 || Object.keys(payHistory).length>0;
+  if(!hasAnyData || (!settingsBase && Object.keys(payHistory).length===0)){
     container.innerHTML = '<div class="empty">明細を読み取ると給与推移が表示されます。</div>';
     document.getElementById('chart-prev').style.visibility = 'hidden';
     document.getElementById('chart-next').style.visibility = 'hidden';
     return;
   }
-  const sortedKeys = [...keys].sort().slice(-12);
-  const entries = sortedKeys.map(k=>{
-    const [y,m] = k.split('-').map(Number);
-    const actual = payHistory[k];
-    if(actual){
-      if(actual.type==='bonus'){
-        const total = actual.total || 0;
-        return {m, key:k, isBonus:true, isEstimate:false, base:0, otPay:0, total};
-      }
-      const base = actual.base || 0;
-      const otPay = actual.otPay || 0;
-      const total = actual.total || (base+otPay);
-      return {m, key:k, isBonus:false, isEstimate:false, base, otPay, total};
+
+  const last12 = getRecentMonths(12).reverse();
+  const entries = last12.map(({y,mo:m})=>{
+    const k = `${y}-${String(m).padStart(2,'0')}`;
+    const rec = payHistory[k] || {};
+    let salary = null;
+    if(rec.salary){
+      salary = { base: rec.salary.base||0, otPay: rec.salary.otPay||0, total: rec.salary.total||0, isEstimate:false };
+    }else if(otHoursByMonth[k] !== undefined){
+      const hours = otHoursByMonth[k]||0;
+      const otPay = (settingsBase && std) ? Math.round((settingsBase/std)*rate*hours) : 0;
+      salary = { base:settingsBase, otPay, total:settingsBase+otPay, isEstimate:true };
     }
-    const hours = otHoursByMonth[k]||0;
-    const otPay = (settingsBase && std) ? Math.round((settingsBase/std)*rate*hours) : 0;
-    return {m, key:k, isBonus:false, isEstimate:true, base:settingsBase, otPay, total: settingsBase+otPay};
+    const bonus = rec.bonus ? { total: rec.bonus.total||0 } : null;
+    const isGap = !salary && !bonus;
+    return {m, key:k, salary, bonus, isGap, gapBase: settingsBase};
   });
+
   if(chartWindowEnd === null || chartWindowEnd > entries.length) chartWindowEnd = entries.length;
   if(chartWindowEnd < Math.min(CHART_WINDOW, entries.length)) chartWindowEnd = Math.min(CHART_WINDOW, entries.length);
   const windowStart = Math.max(0, chartWindowEnd - CHART_WINDOW);
@@ -1453,32 +1483,65 @@ function renderSalaryChart(){
   document.getElementById('chart-prev').style.visibility = windowStart > 0 ? 'visible' : 'hidden';
   document.getElementById('chart-next').style.visibility = chartWindowEnd < entries.length ? 'visible' : 'hidden';
 
-  const maxVal = Math.max(...recent.map(e=>Math.max(e.total, e.base+e.otPay)), 1);
-  const W = 320, H = 180, padBottom = 22, padTop = 14;
+  const maxRaw = Math.max(...recent.map(e=>{
+    let v = 0;
+    if(e.salary) v = Math.max(v, e.salary.total, e.salary.base+e.salary.otPay);
+    if(e.bonus) v = Math.max(v, e.bonus.total);
+    if(e.isGap) v = Math.max(v, e.gapBase);
+    return v;
+  }), 1);
+  const GRID_STEP = 50000;
+  const maxVal = Math.ceil(maxRaw / GRID_STEP) * GRID_STEP || GRID_STEP;
+
+  const W = 320, H = 190, padBottom = 22, padTop = 14, padLeft = 30;
   const usable = recent.length;
-  const gap = 14;
-  const barW = Math.max(20, (W - gap*(usable+1)) / usable);
+  const gapX = 12;
+  const plotW = W - padLeft - 6;
+  const barW = Math.max(18, (plotW - gapX*(usable+1)) / usable);
   const scale = v => (v/maxVal)*(H-padBottom-padTop);
+
   let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;">`;
+
+  for(let g=GRID_STEP; g<=maxVal; g+=GRID_STEP){
+    const gy = H - padBottom - scale(g);
+    svg += `<line x1="${padLeft}" y1="${gy}" x2="${W-4}" y2="${gy}" style="stroke:var(--border);stroke-width:1;"/>`;
+    svg += `<text x="${padLeft-4}" y="${gy+3}" text-anchor="end" font-size="8" style="fill:var(--text-3);">${Math.round(g/10000)}万</text>`;
+  }
+  svg += `<line x1="${padLeft}" y1="${H-padBottom}" x2="${W-4}" y2="${H-padBottom}" style="stroke:var(--border);stroke-width:1;"/>`;
+
   recent.forEach((e,i)=>{
-    const x = gap + i*(barW+gap);
-    const opacity = e.isEstimate ? '0.45' : '1';
-    const monthLabel = e.isBonus ? `${e.m}月賞与` : `${e.m}月`;
-    if(e.isBonus){
-      const h = scale(e.total);
-      const yTop = H - padBottom - h;
-      svg += `<rect x="${x}" y="${yTop}" width="${barW}" height="${h}" rx="3" style="fill:var(--money);opacity:${opacity};"><title>${monthLabel}\n賞与：${formatMan(e.total)}</title></rect>`;
+    const slotX = padLeft + gapX + i*(barW+gapX);
+    const monthLabel = `${e.m}月`;
+    const hasBoth = e.salary && e.bonus;
+    const subW = hasBoth ? (barW-4)/2 : barW;
+
+    if(e.isGap){
+      const baseY = H - padBottom - scale(e.gapBase);
+      svg += `<line x1="${slotX}" y1="${baseY}" x2="${slotX+barW}" y2="${baseY}" style="stroke:#3B6FD6;stroke-width:1.5;stroke-dasharray:4,3;opacity:0.8;"><title>${monthLabel}\nこの月の記録がありません</title></line>`;
     }else{
-      const baseH = scale(e.base);
-      const otH = scale(e.otPay);
-      const baseTop = H - padBottom - baseH;
-      const otTop = baseTop - otH;
-      svg += `<rect x="${x}" y="${baseTop}" width="${barW}" height="${baseH}" rx="2" style="fill:#3B6FD6;opacity:${opacity};"><title>${monthLabel}\n基本給：${formatMan(e.base)}</title></rect>`;
-      if(otH>0.5) svg += `<rect x="${x}" y="${otTop}" width="${barW}" height="${otH}" rx="2" style="fill:#D64545;opacity:${opacity};"><title>${monthLabel}\n残業代：${formatMan(e.otPay)}</title></rect>`;
-      const totalY = H - padBottom - scale(e.total);
-      svg += `<line x1="${x-2}" y1="${totalY}" x2="${x+barW+2}" y2="${totalY}" style="stroke:var(--text);stroke-width:1.5;stroke-dasharray:4,3;opacity:${e.isEstimate?0.6:1};"><title>${monthLabel}\n総支給額：${formatMan(e.total)}</title></line>`;
+      let sx = slotX;
+      if(e.salary){
+        const opacity = e.salary.isEstimate ? '0.45' : '1';
+        const baseH = scale(e.salary.base);
+        const otH = scale(e.salary.otPay);
+        const baseTop = H - padBottom - baseH;
+        const otTop = baseTop - otH;
+        svg += `<rect x="${sx}" y="${baseTop}" width="${subW}" height="${baseH}" rx="2" style="fill:#3B6FD6;opacity:${opacity};"><title>${monthLabel}\n基本給：${formatMan(e.salary.base)}</title></rect>`;
+        if(otH>0.5) svg += `<rect x="${sx}" y="${otTop}" width="${subW}" height="${otH}" rx="2" style="fill:#D64545;opacity:${opacity};"><title>${monthLabel}\n残業代：${formatMan(e.salary.otPay)}</title></rect>`;
+        const totalY = H - padBottom - scale(e.salary.total);
+        svg += `<line x1="${sx-1}" y1="${totalY}" x2="${sx+subW+1}" y2="${totalY}" style="stroke:var(--text);stroke-width:1.5;stroke-dasharray:4,3;opacity:${e.salary.isEstimate?0.6:1};"><title>${monthLabel}\n総支給額：${formatMan(e.salary.total)}</title></line>`;
+        sx += subW + 4;
+      }
+      if(e.bonus){
+        const h = scale(e.bonus.total);
+        const yTop = H - padBottom - h;
+        svg += `<rect x="${sx}" y="${yTop}" width="${subW}" height="${h}" rx="2" style="fill:var(--money);"><title>${monthLabel}賞与\n賞与：${formatMan(e.bonus.total)}</title></rect>`;
+        const totalY2 = H - padBottom - scale(e.bonus.total);
+        svg += `<line x1="${sx-1}" y1="${totalY2}" x2="${sx+subW+1}" y2="${totalY2}" style="stroke:var(--text);stroke-width:1.5;stroke-dasharray:4,3;"><title>${monthLabel}賞与\n総支給額：${formatMan(e.bonus.total)}</title></line>`;
+      }
     }
-    svg += `<text x="${x+barW/2}" y="${H-6}" text-anchor="middle" font-size="10" style="fill:var(--text-2);">${monthLabel.replace('賞与','賞')}</text>`;
+    const labelColor = e.isGap ? '#D64545' : 'var(--text-2)';
+    svg += `<text x="${slotX+barW/2}" y="${H-6}" text-anchor="middle" font-size="10" style="fill:${labelColor};font-weight:${e.isGap?700:400};">${monthLabel}</text>`;
   });
   svg += '</svg>';
   container.innerHTML = svg;
