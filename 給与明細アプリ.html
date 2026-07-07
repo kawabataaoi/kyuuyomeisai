@@ -1471,7 +1471,7 @@ function renderSalaryChart(){
       const otPay = (settingsBase && std) ? Math.round((settingsBase/std)*rate*hours) : 0;
       salary = { base:settingsBase, otPay, total:settingsBase+otPay, isEstimate:true };
     }
-    const bonus = rec.bonus ? { total: rec.bonus.total||0 } : null;
+    const bonus = rec.bonus ? { total: rec.bonus.total||0, net: (rec.bonus.net!==undefined ? rec.bonus.net : (rec.bonus.total||0)) } : null;
     const isGap = !salary && !bonus;
     return {m, key:k, salary, bonus, isGap, gapBase: settingsBase};
   });
@@ -1486,7 +1486,7 @@ function renderSalaryChart(){
   const maxRaw = Math.max(...recent.map(e=>{
     let v = 0;
     if(e.salary) v = Math.max(v, e.salary.total, e.salary.base+e.salary.otPay);
-    if(e.bonus) v = Math.max(v, e.bonus.total);
+    if(e.bonus) v = Math.max(v, e.bonus.total, e.bonus.net);
     if(e.isGap) v = Math.max(v, e.gapBase);
     return v;
   }), 1);
@@ -1533,9 +1533,9 @@ function renderSalaryChart(){
         sx += subW + 4;
       }
       if(e.bonus){
-        const h = scale(e.bonus.total);
+        const h = scale(e.bonus.net);
         const yTop = H - padBottom - h;
-        svg += `<rect x="${sx}" y="${yTop}" width="${subW}" height="${h}" rx="2" style="fill:var(--money);"><title>${monthLabel}賞与\n賞与：${formatMan(e.bonus.total)}</title></rect>`;
+        svg += `<rect x="${sx}" y="${yTop}" width="${subW}" height="${h}" rx="2" style="fill:var(--money);"><title>${monthLabel}賞与\n差引支給額：${formatMan(e.bonus.net)}</title></rect>`;
         const totalY2 = H - padBottom - scale(e.bonus.total);
         svg += `<line x1="${sx-1}" y1="${totalY2}" x2="${sx+subW+1}" y2="${totalY2}" style="stroke:var(--text);stroke-width:1.5;stroke-dasharray:4,3;"><title>${monthLabel}賞与\n総支給額：${formatMan(e.bonus.total)}</title></line>`;
       }
