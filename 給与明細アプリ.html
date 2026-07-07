@@ -612,6 +612,36 @@ async function ensurePdfLib(){
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
   }
 }
+function detectContentBBox(canvas){
+  const w = 220;
+  const h = Math.max(1, Math.round(canvas.height * (w/canvas.width)));
+  const tmp = document.createElement('canvas');
+  tmp.width = w; tmp.height = h;
+  const tctx = tmp.getContext('2d');
+  tctx.drawImage(canvas, 0, 0, w, h);
+  const data = tctx.getImageData(0,0,w,h).data;
+  let minX=w, maxX=-1, minY=h, maxY=-1;
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const i = (y*w+x)*4;
+      const brightness = (data[i]+data[i+1]+data[i+2])/3;
+      if(brightness < 245){
+        if(x<minX)minX=x;
+        if(x>maxX)maxX=x;
+        if(y<minY)minY=y;
+        if(y>maxY)maxY=y;
+      }
+    }
+  }
+  if(maxX<0) return null;
+  const padX = w*0.015, padY = h*0.015;
+  return {
+    x0: Math.max(0, (minX-padX)/w),
+    x1: Math.min(1, (maxX+padX)/w),
+    y0: Math.max(0, (minY-padY)/h),
+    y1: Math.min(1, (maxY+padY)/h)
+  };
+}
 async function renderPdfIntoViewer(bytes, container){
   await ensurePdfLib();
   const pdf = await window.pdfjsLib.getDocument({data: bytes.slice(0)}).promise;
@@ -623,16 +653,29 @@ async function renderPdfIntoViewer(bytes, container){
     const baseViewport = page.getViewport({scale:1});
     const cssScale = targetWidth / baseViewport.width;
     const renderViewport = page.getViewport({scale: cssScale * pixelDensity});
-    const canvas = document.createElement('canvas');
-    canvas.width = renderViewport.width;
-    canvas.height = renderViewport.height;
-    canvas.style.width = '100%';
-    canvas.style.display = 'block';
-    canvas.style.background = '#fff';
-    canvas.style.marginBottom = '8px';
-    canvas.style.borderRadius = '6px';
-    container.appendChild(canvas);
-    await page.render({canvasContext: canvas.getContext('2d'), viewport: renderViewport}).promise;
+    const rawCanvas = document.createElement('canvas');
+    rawCanvas.width = renderViewport.width;
+    rawCanvas.height = renderViewport.height;
+    await page.render({canvasContext: rawCanvas.getContext('2d'), viewport: renderViewport}).promise;
+
+    let displayCanvas = rawCanvas;
+    const bbox = detectContentBBox(rawCanvas);
+    if(bbox && ((bbox.x1-bbox.x0) < 0.97 || (bbox.y1-bbox.y0) < 0.97)){
+      const sx = bbox.x0*rawCanvas.width, sy = bbox.y0*rawCanvas.height;
+      const sw = (bbox.x1-bbox.x0)*rawCanvas.width, sh = (bbox.y1-bbox.y0)*rawCanvas.height;
+      const cropped = document.createElement('canvas');
+      cropped.width = sw;
+      cropped.height = sh;
+      cropped.getContext('2d').drawImage(rawCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+      displayCanvas = cropped;
+    }
+
+    displayCanvas.style.width = '100%';
+    displayCanvas.style.display = 'block';
+    displayCanvas.style.background = '#fff';
+    displayCanvas.style.marginBottom = '8px';
+    displayCanvas.style.borderRadius = '6px';
+    container.appendChild(displayCanvas);
   }
 }
 async function fetchFileBytes(doc){
