@@ -158,6 +158,8 @@ nav.tabbar button svg{width:20px;height:20px;}
       </div>
       <label class="field">日数</label>
       <input type="number" id="yukyu-input-days" step="0.5" min="0" value="1">
+      <label class="field">日付</label>
+      <input type="date" id="yukyu-input-date">
       <label class="field" id="yukyu-note-label">理由（任意）</label>
       <input type="text" id="yukyu-input-note" placeholder="私用のため">
     </div>
@@ -1160,21 +1162,24 @@ async function applyLeave(sign){
   const days = parseFloat(document.getElementById('yukyu-input-days').value);
   if(!days || days<=0) return;
   const note = document.getElementById('yukyu-input-note').value.trim();
+  const dateInput = document.getElementById('yukyu-input-date').value;
+  const dateStr = dateInput || isoDate(new Date());
   if(sign < 0 && !note){
     alert('何に有給を使ったか、理由を入力してください。');
     document.getElementById('yukyu-input-note').focus();
     return;
   }
   if(sign > 0){
-    addLeaveGrant(days, new Date().getFullYear());
+    addLeaveGrant(days, parseInt(dateStr.split('-')[0]));
   }else{
     deductLeave(days);
   }
-  leave.log.push({date: isoDate(new Date()), delta: sign*days, note});
+  leave.log.push({date: dateStr, delta: sign*days, note});
   saveJSON('leave', leave);
   renderLeave();
   renderSummary();
   document.getElementById('yukyu-input-note').value = '';
+  document.getElementById('yukyu-input-date').value = isoDate(new Date());
   if(settings.scriptUrl && settings.driveFolderId){
     const ok = await pushSettingsToDrive();
     if(!ok) alert('Driveへの保存に失敗しました。設定タブの同期状況を確認してください（記録自体はこの端末には残っています）。');
@@ -1350,8 +1355,8 @@ function renderSummary(){
   document.getElementById('sum-ot').textContent = (hrs===undefined) ? '未入力' : `${hrs}時間`;
 }
 
+document.getElementById('yukyu-input-date').value = isoDate(new Date());
 renderLeave();
-renderOvertime();
 renderSummary();
 renderSalaryChart();
 renderMeisaiLists();
