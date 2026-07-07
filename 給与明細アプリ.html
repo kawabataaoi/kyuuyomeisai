@@ -195,12 +195,15 @@ nav.tabbar button svg{width:20px;height:20px;}
       <button class="btn" style="margin-top:12px;" id="ot-save">この月の残業時間を保存</button>
     </div>
     <div class="card">
-      <div class="section-title">給与推移（差引支給額）</div>
+      <div class="section-title">給与推移（基本給＋残業代）</div>
       <div id="salary-chart"></div>
-      <div class="row" style="margin-top:10px;gap:16px;justify-content:flex-start;">
-        <span class="muted" style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--accent);display:inline-block;"></span>差引支給額（実績）</span>
-        <span class="muted" style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--accent);opacity:0.45;display:inline-block;"></span>推定値</span>
+      <div class="row" style="margin-top:10px;gap:12px;justify-content:flex-start;flex-wrap:wrap;">
+        <span class="muted" style="display:flex;align-items:center;gap:6px;font-size:11px;"><span style="width:10px;height:10px;border-radius:3px;background:#3B6FD6;display:inline-block;"></span>基本給</span>
+        <span class="muted" style="display:flex;align-items:center;gap:6px;font-size:11px;"><span style="width:10px;height:10px;border-radius:3px;background:#D64545;display:inline-block;"></span>残業代</span>
+        <span class="muted" style="display:flex;align-items:center;gap:6px;font-size:11px;"><span style="width:14px;height:0;border-top:2px dashed var(--text);display:inline-block;"></span>総支給額</span>
+        <span class="muted" style="display:flex;align-items:center;gap:6px;font-size:11px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--money);display:inline-block;"></span>賞与</span>
       </div>
+      <p class="muted" style="margin-top:8px;font-size:11px;">色が薄い月は残業時間からの推定値、濃い月は明細から入力した実績です。</p>
     </div>
     <div class="card">
       <div class="section-title">明細の実績を手入力</div>
@@ -1345,12 +1348,17 @@ function previousMonthStr(){
 }
 document.getElementById('ot-month').value = currentMonthStr();
 
+function loadOvertimeHoursField(){
+  const monthStr = document.getElementById('ot-month').value || currentMonthStr();
+  const hours = otHoursByMonth[monthStr] !== undefined ? otHoursByMonth[monthStr] : 0;
+  document.getElementById('ot-hours').value = hours;
+}
+loadOvertimeHoursField();
 function renderOvertime(){
   document.getElementById('payday-next').textContent = fmtDate(nextPayday());
   const monthStr = document.getElementById('ot-month').value || currentMonthStr();
   const [y, mo] = monthStr.split('-').map(Number);
-  const hours = otHoursByMonth[monthStr] !== undefined ? otHoursByMonth[monthStr] : 0;
-  document.getElementById('ot-hours').value = hours;
+  const hours = parseFloat(document.getElementById('ot-hours').value) || 0;
 
   const base = settings.baseSalary || 0;
   const std = settings.standardHours || 0;
@@ -1372,7 +1380,10 @@ function renderOvertime(){
   const pd = paydayForMonth(y, mo+1);
   document.getElementById('ot-payday-label').textContent = `${y}年${mo}月度（月末締め） → 支給予定日 ${fmtDate(pd)}`;
 }
-document.getElementById('ot-month').addEventListener('change', renderOvertime);
+document.getElementById('ot-month').addEventListener('change', ()=>{
+  loadOvertimeHoursField();
+  renderOvertime();
+});
 document.getElementById('ot-hours').addEventListener('input', renderOvertime);
 document.getElementById('ot-save').addEventListener('click', async ()=>{
   const monthStr = document.getElementById('ot-month').value || currentMonthStr();
@@ -1386,13 +1397,13 @@ document.getElementById('ot-save').addEventListener('click', async ()=>{
 
 function renderSalaryChart(){
   const container = document.getElementById('salary-chart');
-  const base = settings.baseSalary || 0;
+  const settingsBase = settings.baseSalary || 0;
   const std = settings.standardHours || 0;
   const rate = settings.otRate || 1.25;
 
   const keys = new Set([...Object.keys(otHoursByMonth), ...Object.keys(payHistory)]);
-  if(keys.size===0 || (!base && Object.keys(payHistory).length===0)){
-    container.innerHTML = '<div class="empty">明細を読み取ると差引支給額の推移が表示されます。</div>';
+  if(keys.size===0 || (!settingsBase && Object.keys(payHistory).length===0)){
+    container.innerHTML = '<div class="empty">明細を読み取ると給与推移が表示されます。</div>';
     return;
   }
   const sortedKeys = [...keys].sort();
@@ -1400,27 +1411,44 @@ function renderSalaryChart(){
     const [y,m] = k.split('-').map(Number);
     const actual = payHistory[k];
     if(actual){
-      const total = actual.total || 0;
-      const net = actual.net || total;
-      return {m, key:k, isBonus: actual.type==='bonus', isEstimate:false, net};
+      if(actual.type==='bonus'){
+        const total = actual.total || 0;
+        return {m, key:k, isBonus:true, isEstimate:false, base:0, otPay:0, total};
+      }
+      const base = actual.base || 0;
+      const otPay = actual.otPay || 0;
+      const total = actual.total || (base+otPay);
+      return {m, key:k, isBonus:false, isEstimate:false, base, otPay, total};
     }
     const hours = otHoursByMonth[k]||0;
-    const otPay = (base && std) ? Math.round((base/std)*rate*hours) : 0;
-    return {m, key:k, isBonus:false, isEstimate:true, net: base+otPay};
+    const otPay = (settingsBase && std) ? Math.round((settingsBase/std)*rate*hours) : 0;
+    return {m, key:k, isBonus:false, isEstimate:true, base:settingsBase, otPay, total: settingsBase+otPay};
   });
   const recent = entries.slice(-6);
-  const maxNet = Math.max(...recent.map(e=>e.net), 1);
-  const W = 320, H = 170, padBottom = 22, padTop = 10;
+  const maxVal = Math.max(...recent.map(e=>Math.max(e.total, e.base+e.otPay)), 1);
+  const W = 320, H = 180, padBottom = 22, padTop = 14;
   const usable = recent.length;
   const gap = 14;
   const barW = Math.max(20, (W - gap*(usable+1)) / usable);
+  const scale = v => (v/maxVal)*(H-padBottom-padTop);
   let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;">`;
   recent.forEach((e,i)=>{
     const x = gap + i*(barW+gap);
-    const h = (e.net/maxNet)*(H-padBottom-padTop);
-    const yTop = H - padBottom - h;
     const opacity = e.isEstimate ? '0.45' : '1';
-    svg += `<rect x="${x}" y="${yTop}" width="${barW}" height="${h}" rx="3" style="fill:var(--accent);opacity:${opacity};"/>`;
+    if(e.isBonus){
+      const h = scale(e.total);
+      const yTop = H - padBottom - h;
+      svg += `<rect x="${x}" y="${yTop}" width="${barW}" height="${h}" rx="3" style="fill:var(--money);opacity:${opacity};"/>`;
+    }else{
+      const baseH = scale(e.base);
+      const otH = scale(e.otPay);
+      const baseTop = H - padBottom - baseH;
+      const otTop = baseTop - otH;
+      svg += `<rect x="${x}" y="${baseTop}" width="${barW}" height="${baseH}" rx="2" style="fill:#3B6FD6;opacity:${opacity};"/>`;
+      if(otH>0.5) svg += `<rect x="${x}" y="${otTop}" width="${barW}" height="${otH}" rx="2" style="fill:#D64545;opacity:${opacity};"/>`;
+      const totalY = H - padBottom - scale(e.total);
+      svg += `<line x1="${x-2}" y1="${totalY}" x2="${x+barW+2}" y2="${totalY}" style="stroke:var(--text);stroke-width:1.5;stroke-dasharray:4,3;opacity:${e.isEstimate?0.6:1};"/>`;
+    }
     const label = e.isBonus ? `${e.m}月賞` : `${e.m}月`;
     svg += `<text x="${x+barW/2}" y="${H-6}" text-anchor="middle" font-size="10" style="fill:var(--text-2);">${label}</text>`;
   });
