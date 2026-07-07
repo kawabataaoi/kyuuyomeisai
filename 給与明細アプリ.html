@@ -424,10 +424,10 @@ function doGet(e) {
     } else if (action === 'ocr') {
       var srcFile = DriveApp.getFileById(e.parameter.id);
       var srcBlob = srcFile.getBlob();
-      var resource = { title: 'ocr_tmp_' + new Date().getTime(), mimeType: MimeType.GOOGLE_DOCS };
-      var ocrFile = Drive.Files.insert(resource, srcBlob, { ocr: true, ocrLanguage: 'ja' });
+      var resource = { name: 'ocr_tmp_' + new Date().getTime(), mimeType: MimeType.GOOGLE_DOCS };
+      var ocrFile = Drive.Files.create(resource, srcBlob, { ocrLanguage: 'ja' });
       var ocrText = DocumentApp.openById(ocrFile.id).getBody().getText();
-      Drive.Files.remove(ocrFile.id);
+      try { Drive.Files.remove(ocrFile.id); } catch (delErr) {}
       out = { text: ocrText };
     } else {
       out = {error: 'unknown action'};
