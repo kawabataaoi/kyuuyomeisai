@@ -224,6 +224,7 @@ nav.tabbar button svg{width:20px;height:20px;}
       <div class="helptext">オンにすると、基本給・給料日・有給日数などの設定を「kyuyodaicho_settings.json」というファイルにDriveフォルダへ保存し、他の端末からも同じ内容を読み込めるようになります（Apps ScriptのURL・フォルダIDだけは端末ごとに入力が必要です）。</div>
       <p class="muted" id="sync-status" style="margin-top:6px;"></p>
       <button class="btn ghost small" id="btn-sync-now" style="margin-top:6px;width:100%;">今すぐ同期</button>
+      <pre id="sync-debug" style="display:none;white-space:pre-wrap;font-size:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:8px;max-height:260px;overflow:auto;"></pre>
     </div>
     <div class="card">
       <div class="section-title">給与の基礎情報</div>
@@ -805,6 +806,7 @@ function parseSettingsText(text){
 async function pullSettingsFromDrive(){
   if(!settings.scriptUrl || !settings.driveFolderId || !settings.syncEnabled) return;
   const status = document.getElementById('sync-status');
+  const debugEl = document.getElementById('sync-debug');
   status.textContent = 'Driveから設定を取得しています…';
   try{
     const url = `${settings.scriptUrl}?action=readSettings&folder=${encodeURIComponent(settings.driveFolderId)}`;
@@ -831,6 +833,8 @@ async function pullSettingsFromDrive(){
     renderSummary();
     renderSalaryChart();
     status.textContent = 'Driveの設定を反映しました（' + new Date().toLocaleTimeString('ja-JP') + '）';
+    debugEl.style.display = 'block';
+    debugEl.textContent = '--- 取得した生テキスト ---\n' + data.content + '\n\n--- 解析結果 ---\n' + JSON.stringify({settings: parsed.settings, otHours: parsed.otHours, byYear: parsed.byYear, usageCount: parsed.usage.length}, null, 2) + '\n\n--- 適用後の設定値 ---\n' + JSON.stringify({payDay:settings.payDay, closeDay:settings.closeDay, bonusMonth1:settings.bonusMonth1, bonusDay1:settings.bonusDay1, bonusMonth2:settings.bonusMonth2, bonusDay2:settings.bonusDay2, grantDate:settings.grantDate, grantDays:settings.grantDays, byYear: leave.byYear}, null, 2);
   }catch(e){
     status.textContent = '取得に失敗しました：' + e.message;
   }
