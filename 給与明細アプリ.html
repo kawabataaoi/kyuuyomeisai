@@ -1153,9 +1153,36 @@ function renderLeave(){
     const div = document.createElement('div');
     div.className = 'log-item';
     const sign = item.delta > 0 ? '+' : '';
-    div.innerHTML = `<div><div>${item.note||(item.delta>0?'付与':'使用')}</div><div class="d">${isoToDisplay(item.date)}</div></div><div class="mono">${sign}${item.delta.toFixed(1)}日</div>`;
+    div.innerHTML = `<div><div>${item.note||(item.delta>0?'付与':'使用')}</div><div class="d">${isoToDisplay(item.date)}</div></div><div class="row" style="gap:8px;"><div class="mono">${sign}${item.delta.toFixed(1)}日</div><button class="x-btn" style="font-size:16px;" data-del-leave>×</button></div>`;
+    div.querySelector('[data-del-leave]').addEventListener('click', ()=>deleteLeaveEntry(item));
     logEl.appendChild(div);
   });
+}
+
+function recomputeByYearFromLog(){
+  leave.byYear = {};
+  const sorted = [...(leave.log||[])].sort((a,b)=>a.date.localeCompare(b.date));
+  sorted.forEach(e=>{
+    if(e.delta>0){
+      addLeaveGrant(e.delta, parseInt(e.date.split('-')[0]));
+    }else{
+      deductLeave(-e.delta);
+    }
+  });
+}
+
+async function deleteLeaveEntry(item){
+  if(!confirm(`「${item.note||(item.delta>0?'付与':'使用')}」（${isoToDisplay(item.date)}・${item.delta>0?'+':''}${item.delta}日）を削除しますか？`)) return;
+  const idx = leave.log.indexOf(item);
+  if(idx>-1) leave.log.splice(idx,1);
+  recomputeByYearFromLog();
+  saveJSON('leave', leave);
+  renderLeave();
+  renderSummary();
+  if(settings.scriptUrl && settings.driveFolderId){
+    const ok = await pushSettingsToDrive();
+    if(!ok) alert('Driveへの反映に失敗しました。設定タブの同期状況を確認してください（この端末では削除済みです）。');
+  }
 }
 
 async function applyLeave(sign){
