@@ -1395,6 +1395,11 @@ document.getElementById('ot-save').addEventListener('click', async ()=>{
   if(settings.scriptUrl && settings.driveFolderId) await pushSettingsToDrive();
 });
 
+function formatMan(v){
+  const man = v/10000;
+  const rounded = Math.round(man*10)/10;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}万円`;
+}
 function renderSalaryChart(){
   const container = document.getElementById('salary-chart');
   const settingsBase = settings.baseSalary || 0;
@@ -1435,22 +1440,22 @@ function renderSalaryChart(){
   recent.forEach((e,i)=>{
     const x = gap + i*(barW+gap);
     const opacity = e.isEstimate ? '0.45' : '1';
+    const monthLabel = e.isBonus ? `${e.m}月賞与` : `${e.m}月`;
     if(e.isBonus){
       const h = scale(e.total);
       const yTop = H - padBottom - h;
-      svg += `<rect x="${x}" y="${yTop}" width="${barW}" height="${h}" rx="3" style="fill:var(--money);opacity:${opacity};"/>`;
+      svg += `<rect x="${x}" y="${yTop}" width="${barW}" height="${h}" rx="3" style="fill:var(--money);opacity:${opacity};"><title>${monthLabel}\n賞与：${formatMan(e.total)}</title></rect>`;
     }else{
       const baseH = scale(e.base);
       const otH = scale(e.otPay);
       const baseTop = H - padBottom - baseH;
       const otTop = baseTop - otH;
-      svg += `<rect x="${x}" y="${baseTop}" width="${barW}" height="${baseH}" rx="2" style="fill:#3B6FD6;opacity:${opacity};"/>`;
-      if(otH>0.5) svg += `<rect x="${x}" y="${otTop}" width="${barW}" height="${otH}" rx="2" style="fill:#D64545;opacity:${opacity};"/>`;
+      svg += `<rect x="${x}" y="${baseTop}" width="${barW}" height="${baseH}" rx="2" style="fill:#3B6FD6;opacity:${opacity};"><title>${monthLabel}\n基本給：${formatMan(e.base)}</title></rect>`;
+      if(otH>0.5) svg += `<rect x="${x}" y="${otTop}" width="${barW}" height="${otH}" rx="2" style="fill:#D64545;opacity:${opacity};"><title>${monthLabel}\n残業代：${formatMan(e.otPay)}</title></rect>`;
       const totalY = H - padBottom - scale(e.total);
-      svg += `<line x1="${x-2}" y1="${totalY}" x2="${x+barW+2}" y2="${totalY}" style="stroke:var(--text);stroke-width:1.5;stroke-dasharray:4,3;opacity:${e.isEstimate?0.6:1};"/>`;
+      svg += `<line x1="${x-2}" y1="${totalY}" x2="${x+barW+2}" y2="${totalY}" style="stroke:var(--text);stroke-width:1.5;stroke-dasharray:4,3;opacity:${e.isEstimate?0.6:1};"><title>${monthLabel}\n総支給額：${formatMan(e.total)}</title></line>`;
     }
-    const label = e.isBonus ? `${e.m}月賞` : `${e.m}月`;
-    svg += `<text x="${x+barW/2}" y="${H-6}" text-anchor="middle" font-size="10" style="fill:var(--text-2);">${label}</text>`;
+    svg += `<text x="${x+barW/2}" y="${H-6}" text-anchor="middle" font-size="10" style="fill:var(--text-2);">${monthLabel.replace('賞与','賞')}</text>`;
   });
   svg += '</svg>';
   container.innerHTML = svg;
