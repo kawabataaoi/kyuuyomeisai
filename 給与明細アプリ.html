@@ -1503,8 +1503,14 @@ function renderSalaryChart(){
     return;
   }
 
-  const last12 = getRecentMonths(12).reverse();
-  const entries = last12.map(({y,mo:m})=>{
+  const allDocsForRange = [...documents, ...driveDocs].filter(d=>d.y && d.mo);
+  const dataMonths = [
+    ...allDocsForRange.map(d=>({y:d.y, mo:d.mo})),
+    ...Object.keys(payHistory).map(k=>{ const [y,mo]=k.split('-').map(Number); return {y,mo}; }),
+    ...Object.keys(otHoursByMonth).map(k=>{ const [y,mo]=k.split('-').map(Number); return {y,mo}; })
+  ];
+  const fullRange = getFullMonthRange(dataMonths);
+  const entries = fullRange.map(({y,mo:m})=>{
     const k = `${y}-${String(m).padStart(2,'0')}`;
     const rec = payHistory[k] || {};
     let salary = null;
