@@ -208,7 +208,7 @@ nav.tabbar button svg{width:20px;height:20px;}
         <tr><td class="label">次回賞与</td><td class="val" id="sum-bonus">-</td></tr>
         <tr><td class="label">有給残日数</td><td class="val"><span id="sum-leave">0.0日</span><div id="sum-leave-expire" style="font-size:10px;font-weight:400;color:var(--danger);display:none;"></div></td></tr>
         <tr><td class="label">次回有給付与</td><td class="val" id="sum-grant">-</td></tr>
-        <tr><td class="label" id="sum-ot-label">前月残業時間</td><td class="val" id="sum-ot">未入力</td></tr>
+        <tr><td class="label">今月残業時間</td><td class="val"><span id="sum-ot">未入力</span><div id="sum-ot-lastmonth" style="font-size:10px;font-weight:400;color:var(--text-3);"></div></td></tr>
       </table>
     </div>
     <div class="card">
@@ -357,6 +357,8 @@ nav.tabbar button svg{width:20px;height:20px;}
       <input type="number" id="set-standard-hours" placeholder="160">
       <label class="field">残業割増率</label>
       <input type="number" id="set-ot-rate" step="0.01" placeholder="1.25">
+      <label class="field">残業時間の警告基準（時間・超えると赤字）</label>
+      <input type="number" id="set-ot-warn" step="1" placeholder="45">
     </div>
     <div class="card">
       <div class="section-title">有給ルール</div>
@@ -460,7 +462,7 @@ function saveJSON(key, val){
   try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){ console.error('保存失敗', e); }
 }
 
-let settings = loadJSON('settings', {baseSalary:'', standardHours:'', otRate:1.25, payDay:5, closeDay:0, bonusMonth1:8, bonusMonth2:12, bonusDay1:undefined, bonusDay2:undefined, grantDate:'', grantDays:10, scriptUrl:'', driveFolderId:''});
+let settings = loadJSON('settings', {baseSalary:'', standardHours:'', otRate:1.25, otWarnHours:45, payDay:5, closeDay:0, bonusMonth1:8, bonusMonth2:12, bonusDay1:undefined, bonusDay2:undefined, grantDate:'', grantDays:10, scriptUrl:'', driveFolderId:''});
 let leave = loadJSON('leave', {byYear:{}, log:[]});
 if(!leave.byYear){
   const migrated = leave.balance!==undefined ? leave.balance : Math.round((leave.log||[]).reduce((s,e)=>s+e.delta,0)*10)/10;
@@ -582,6 +584,7 @@ function fillSettingsForm(){
   document.getElementById('set-base-salary').value = settings.baseSalary || '';
   document.getElementById('set-standard-hours').value = settings.standardHours || '';
   document.getElementById('set-ot-rate').value = settings.otRate || 1.25;
+  document.getElementById('set-ot-warn').value = settings.otWarnHours!==undefined ? settings.otWarnHours : 45;
   document.getElementById('set-pay-day').value = settings.payDay!==undefined ? settings.payDay : 5;
   document.getElementById('set-close-day').value = settings.closeDay!==undefined ? settings.closeDay : 0;
   document.getElementById('set-bonus-month1').value = settings.bonusMonth1!==undefined ? settings.bonusMonth1 : 8;
@@ -600,6 +603,7 @@ function readSettingsForm(){
     baseSalary: parseFloat(document.getElementById('set-base-salary').value)||0,
     standardHours: parseFloat(document.getElementById('set-standard-hours').value)||0,
     otRate: parseFloat(document.getElementById('set-ot-rate').value)||1.25,
+    otWarnHours: parseFloat(document.getElementById('set-ot-warn').value)||45,
     payDay: parseInt(document.getElementById('set-pay-day').value)||5,
     closeDay: document.getElementById('set-close-day').value===''?0:parseInt(document.getElementById('set-close-day').value),
     bonusMonth1: parseInt(document.getElementById('set-bonus-month1').value)||8,
@@ -1098,6 +1102,7 @@ function serializeSettingsText(){
   lines.push(`基本給:${settings.baseSalary||0}`);
   lines.push(`所定労働時間:${settings.standardHours||0}`);
   lines.push(`残業割増率:${settings.otRate||1.25}`);
+  lines.push(`残業時間警告基準:${settings.otWarnHours!==undefined?settings.otWarnHours:45}`);
   lines.push('');
   lines.push(`賞与月1:${pad2(settings.bonusMonth1||8)}`);
   lines.push(`賞与日1:${bd1===0?'00(月末)':pad2(bd1)}`);
@@ -1199,6 +1204,8 @@ function parseSettingsText(text){
       result.settings.standardHours = parseFloat(m[1]);
     }else if(m = line.match(/^残業割増率:([\d.]+)$/)){
       result.settings.otRate = parseFloat(m[1]);
+    }else if(m = line.match(/^残業時間警告基準:([\d.]+)$/)){
+      result.settings.otWarnHours = parseFloat(m[1]);
     }else if(m = line.match(/^賞与月1:(\d+)$/)){
       result.settings.bonusMonth1 = parseInt(m[1]);
     }else if(m = line.match(/^賞与日1:(\d+)/)){
@@ -1808,11 +1815,21 @@ function renderSummary(){
     expireEl.style.display = 'none';
   }
   document.getElementById('sum-grant').textContent = settings.grantDate ? `${isoToDisplay(settings.grantDate)}（${settings.grantDays||0}日）` : '未設定';
+  const cm = currentMonthStr();
+  const curHrs = otHoursByMonth[cm];
+  const warnHours = settings.otWarnHours!==undefined ? settings.otWarnHours : 45;
+  const sumOtEl = document.getElementById('sum-ot');
+  if(curHrs===undefined){
+    sumOtEl.textContent = '未入力';
+    sumOtEl.style.color = '';
+  }else{
+    sumOtEl.textContent = `${curHrs}時間`;
+    sumOtEl.style.color = curHrs > warnHours ? 'var(--danger)' : '#3B6FD6';
+  }
   const pm = previousMonthStr();
-  const [py, pmo] = pm.split('-').map(Number);
-  document.getElementById('sum-ot-label').textContent = `${pmo}月度残業時間`;
-  const hrs = otHoursByMonth[pm];
-  document.getElementById('sum-ot').textContent = (hrs===undefined) ? '未入力' : `${hrs}時間`;
+  const pHrs = otHoursByMonth[pm];
+  const [, pmo] = pm.split('-').map(Number);
+  document.getElementById('sum-ot-lastmonth').textContent = pHrs!==undefined ? `(先月${pHrs}時間)` : '';
 }
 
 document.getElementById('yukyu-input-date').value = isoDate(new Date());
