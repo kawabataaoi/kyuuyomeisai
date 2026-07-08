@@ -849,8 +849,7 @@ function renderMeisaiLists(){
   const fullRange = getFullMonthRange(salaryDocs).filter(m=>!recentKeys.has(m.y*100+m.mo));
   const extraBonus = bonusDocs.filter(d=>{
     const inRecent = recentKeys.has((d.y||0)*100+(d.mo||0));
-    const inRange = fullRange.some(m=>m.y===d.y && m.mo===d.mo);
-    return !inRecent && !inRange;
+    return !inRecent;
   });
   if(fullRange.length===0 && extraBonus.length===0){
     allEl.innerHTML = '<div class="empty">他に明細はありません。</div>';
