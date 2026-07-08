@@ -46,10 +46,11 @@ main{flex:1;padding:0 16px 96px;overflow-y:auto;}
 .row{display:flex;justify-content:space-between;align-items:center;gap:10px;}
 label.field{display:block;font-size:12px;color:var(--text-2);margin:12px 0 4px;}
 label.field:first-child{margin-top:0;}
-input[type=text],input[type=number],input[type=month],input[type=date],select{
+input[type=text],input[type=number],input[type=month],input[type=date],input[type=email],select{
   width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);
   color:var(--text);font-size:14px;font-family:'Zen Kaku Gothic New',sans-serif;
 }
+textarea.contact-textarea{width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:7px;background:var(--surface-2);color:var(--text);font-size:14px;font-family:'Zen Kaku Gothic New',sans-serif;resize:vertical;box-sizing:border-box;}
 input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px;}
 .mono{font-family:'JetBrains Mono',monospace;}
 button{font-family:'Zen Kaku Gothic New',sans-serif;cursor:pointer;}
@@ -122,6 +123,26 @@ nav.tabbar button svg{width:20px;height:20px;}
       <button class="x-btn" id="contact-close">×</button>
     </header>
     <div style="padding:16px 18px;overflow-y:auto;">
+      <label class="field" style="margin-top:0;">お名前</label>
+      <input type="text" id="contact-name" value="青山" placeholder="お名前">
+      <label class="field">優先希望度（Sが最優先）</label>
+      <select id="contact-priority">
+        <option value="S">S（最優先）</option>
+        <option value="A">A</option>
+        <option value="B">B</option>
+        <option value="C" selected>C</option>
+        <option value="D">D</option>
+        <option value="E">E（低め）</option>
+      </select>
+      <label class="field" style="display:flex;align-items:center;gap:8px;margin-top:14px;">
+        <input type="checkbox" id="contact-reply-needed" style="width:auto;" checked>
+        返信希望
+      </label>
+      <div id="contact-reply-email-wrap">
+        <label class="field">返信希望のメールアドレス</label>
+        <input type="email" id="contact-reply-email" placeholder="you@example.com">
+      </div>
+      <div style="border-top:1px dashed var(--border);margin:16px 0;"></div>
       <label class="field" style="margin-top:0;">お問い合わせ種別</label>
       <div class="row" style="flex-wrap:wrap;gap:8px;justify-content:flex-start;margin-bottom:4px;" id="contact-category-buttons">
         <button class="btn small outline contact-cat-btn" data-cat="salary">給与間違い</button>
@@ -129,10 +150,46 @@ nav.tabbar button svg{width:20px;height:20px;}
         <button class="btn small outline contact-cat-btn" data-cat="other">その他問い合わせ</button>
         <button class="btn small outline contact-cat-btn" data-cat="bug">バグ報告</button>
       </div>
-      <label class="field" id="contact-label1">対象年月</label>
-      <input type="text" id="contact-field1">
-      <label class="field" id="contact-label2">間違っている内容</label>
-      <textarea id="contact-field2" rows="4" style="width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:7px;background:var(--surface-2);color:var(--text);font-size:14px;font-family:'Zen Kaku Gothic New',sans-serif;resize:vertical;"></textarea>
+
+      <div id="contact-fields-salary" class="contact-fields">
+        <label class="field">対象年月</label>
+        <input type="month" id="contact-salary-month">
+        <label class="field">過不足の種類</label>
+        <select id="contact-salary-diff">
+          <option value="多い">多い（実際より多く入力・計算されている）</option>
+          <option value="少ない">少ない（実際より少なく入力・計算されている）</option>
+          <option value="他人の明細だった">他人の明細だった</option>
+        </select>
+        <label class="field">間違っている内容</label>
+        <textarea id="contact-salary-detail" rows="4" class="contact-textarea" placeholder="例：残業代の金額が実際の明細と違います"></textarea>
+      </div>
+
+      <div id="contact-fields-leave" class="contact-fields" style="display:none;">
+        <label class="field">対象日付</label>
+        <input type="date" id="contact-leave-date">
+        <label class="field">過不足の種類</label>
+        <select id="contact-leave-diff">
+          <option value="多い">多い（実際より多く登録されている）</option>
+          <option value="少ない">少ない（実際より少なく登録されている）</option>
+        </select>
+        <label class="field">間違っている内容</label>
+        <textarea id="contact-leave-detail" rows="4" class="contact-textarea" placeholder="例：使用日数が実際と違います"></textarea>
+      </div>
+
+      <div id="contact-fields-other" class="contact-fields" style="display:none;">
+        <label class="field">件名</label>
+        <input type="text" id="contact-other-subject" placeholder="例：明細の見方について">
+        <label class="field">内容</label>
+        <textarea id="contact-other-detail" rows="4" class="contact-textarea"></textarea>
+      </div>
+
+      <div id="contact-fields-bug" class="contact-fields" style="display:none;">
+        <label class="field">発生した操作・画面</label>
+        <input type="text" id="contact-bug-where" placeholder="例：有給タブで「使用」を押した時">
+        <label class="field">症状の詳細</label>
+        <textarea id="contact-bug-detail" rows="4" class="contact-textarea" placeholder="例：画面が真っ白になって進めなくなります"></textarea>
+      </div>
+
       <button class="btn" id="contact-send" style="margin-top:14px;">送信する</button>
       <p class="muted" id="contact-status" style="margin-top:8px;">送信先：a_aoyama@dsbz.jp（お使いのメールアプリが開きます）</p>
     </div>
@@ -763,22 +820,14 @@ document.getElementById('modal-close').addEventListener('click', ()=>{
   document.getElementById('modal-viewer').innerHTML = '';
 });
 
-const CONTACT_CATEGORIES = {
-  salary: { title:'給与間違い', label1:'対象年月', placeholder1:'例：2026年7月', label2:'間違っている内容', placeholder2:'例：残業代の金額が実際の明細と違います' },
-  leave:  { title:'有給間違い', label1:'対象日付', placeholder1:'例：2026/6/7', label2:'間違っている内容', placeholder2:'例：使用日数が実際と違います' },
-  other:  { title:'その他問い合わせ', label1:'件名', placeholder1:'例：明細の見方について', label2:'内容', placeholder2:'' },
-  bug:    { title:'バグ報告', label1:'発生した操作・画面', placeholder1:'例：有給タブで「使用」を押した時', label2:'症状の詳細', placeholder2:'例：画面が真っ白になって進めなくなります' }
-};
+const CONTACT_TITLES = { salary:'給与間違い', leave:'有給間違い', other:'その他問い合わせ', bug:'バグ報告' };
 let contactCategory = 'salary';
 function renderContactCategory(){
-  const cfg = CONTACT_CATEGORIES[contactCategory];
   document.querySelectorAll('.contact-cat-btn').forEach(b=>{
     b.classList.toggle('active', b.dataset.cat === contactCategory);
   });
-  document.getElementById('contact-label1').textContent = cfg.label1;
-  document.getElementById('contact-field1').placeholder = cfg.placeholder1;
-  document.getElementById('contact-label2').textContent = cfg.label2;
-  document.getElementById('contact-field2').placeholder = cfg.placeholder2;
+  document.querySelectorAll('.contact-fields').forEach(el=>{ el.style.display = 'none'; });
+  document.getElementById('contact-fields-'+contactCategory).style.display = 'block';
 }
 document.querySelectorAll('.contact-cat-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -786,10 +835,17 @@ document.querySelectorAll('.contact-cat-btn').forEach(btn=>{
     renderContactCategory();
   });
 });
+document.getElementById('contact-reply-needed').addEventListener('change', ()=>{
+  document.getElementById('contact-reply-email-wrap').style.display = document.getElementById('contact-reply-needed').checked ? 'block' : 'none';
+});
 document.getElementById('btn-contact-open').addEventListener('click', ()=>{
   contactCategory = 'salary';
-  document.getElementById('contact-field1').value = '';
-  document.getElementById('contact-field2').value = '';
+  document.querySelectorAll('.contact-fields input, .contact-fields textarea, .contact-fields select').forEach(el=>{
+    if(el.tagName==='SELECT') el.selectedIndex = 0; else el.value = '';
+  });
+  document.getElementById('contact-reply-email').value = '';
+  document.getElementById('contact-reply-needed').checked = true;
+  document.getElementById('contact-reply-email-wrap').style.display = 'block';
   document.getElementById('contact-status').textContent = settings.scriptUrl ? '送信先：a_aoyama@dsbz.jp' : 'Apps ScriptのURLが未設定です。設定タブで設定してください。';
   renderContactCategory();
   document.getElementById('contact-modal').classList.remove('hidden');
@@ -797,31 +853,82 @@ document.getElementById('btn-contact-open').addEventListener('click', ()=>{
 document.getElementById('contact-close').addEventListener('click', ()=>{
   document.getElementById('contact-modal').classList.add('hidden');
 });
+
+function buildContactItems(){
+  if(contactCategory==='salary'){
+    const month = document.getElementById('contact-salary-month').value;
+    const monthLabel = month ? `${month.split('-')[0]}年${parseInt(month.split('-')[1])}月度給与明細` : '';
+    return {
+      valid: !!(month && document.getElementById('contact-salary-detail').value.trim()),
+      lines: [
+        `対象：${monthLabel || '（未選択）'}`,
+        `過不足の種類：${document.getElementById('contact-salary-diff').value}`,
+        `間違っている内容：${document.getElementById('contact-salary-detail').value.trim()}`
+      ]
+    };
+  }
+  if(contactCategory==='leave'){
+    const date = document.getElementById('contact-leave-date').value;
+    return {
+      valid: !!(date && document.getElementById('contact-leave-detail').value.trim()),
+      lines: [
+        `対象日付：${date ? isoToDisplay(date) : '（未選択）'}`,
+        `過不足の種類：${document.getElementById('contact-leave-diff').value}`,
+        `間違っている内容：${document.getElementById('contact-leave-detail').value.trim()}`
+      ]
+    };
+  }
+  if(contactCategory==='other'){
+    const subj = document.getElementById('contact-other-subject').value.trim();
+    const detail = document.getElementById('contact-other-detail').value.trim();
+    return { valid: !!(subj && detail), lines: [`件名：${subj}`, `内容：${detail}`] };
+  }
+  const where = document.getElementById('contact-bug-where').value.trim();
+  const detail = document.getElementById('contact-bug-detail').value.trim();
+  return { valid: !!(where && detail), lines: [`発生した操作・画面：${where}`, `症状の詳細：${detail}`] };
+}
+
 document.getElementById('contact-send').addEventListener('click', async ()=>{
-  const cfg = CONTACT_CATEGORIES[contactCategory];
-  const v1 = document.getElementById('contact-field1').value.trim();
-  const v2 = document.getElementById('contact-field2').value.trim();
   const status = document.getElementById('contact-status');
-  if(!v1 || !v2){
-    alert('入力欄を両方とも入力してください。');
+  const replyNeeded = document.getElementById('contact-reply-needed').checked;
+  const replyEmail = document.getElementById('contact-reply-email').value.trim();
+  if(replyNeeded && !replyEmail){
+    alert('返信希望の場合は、返信希望のメールアドレスを入力してください。');
+    document.getElementById('contact-reply-email').focus();
+    return;
+  }
+  if(replyNeeded && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyEmail)){
+    alert('メールアドレスの形式が正しくないようです。');
+    document.getElementById('contact-reply-email').focus();
+    return;
+  }
+  const items = buildContactItems();
+  if(!items.valid){
+    alert('必要な項目をすべて入力してください。');
     return;
   }
   if(!settings.scriptUrl){
     status.textContent = 'Apps ScriptのURLが未設定です。設定タブで設定してください。';
     return;
   }
+  const name = document.getElementById('contact-name').value.trim() || '青山';
+  const priority = document.getElementById('contact-priority').value;
+  const title = CONTACT_TITLES[contactCategory];
+  const numbered = items.lines.map((t,i)=>`${['①','②','③','④'][i]||(i+1)+'.'}${t}`).join('\n');
   const body =
 `お疲れ様です。
-青山です。
+${name}です。
 
-${cfg.title}の件について以下の確認をお願いします。
-①${cfg.label1}：${v1}
-②${cfg.label2}：${v2}
+${title}の件について以下の確認をお願いします。
+${numbered}
+
+優先希望度：${priority}
+返信希望：${replyNeeded ? `希望する（${replyEmail}）` : '希望しない'}
 
 以上ご確認お願いします。
 
 給与台帳　お問い合わせ機能より本件は自動メールで送信されました。`;
-  const subject = `【給与台帳】${cfg.title}のお問い合わせ`;
+  const subject = `【給与台帳】【${priority}】${title}のお問い合わせ`;
   status.textContent = '送信しています…';
   try{
     const url = `${settings.scriptUrl}?action=sendInquiry&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -831,8 +938,6 @@ ${cfg.title}の件について以下の確認をお願いします。
       return;
     }
     status.textContent = '送信しました。ご確認ありがとうございました。';
-    document.getElementById('contact-field1').value = '';
-    document.getElementById('contact-field2').value = '';
   }catch(e){
     status.textContent = '送信に失敗しました：' + e.message;
   }
