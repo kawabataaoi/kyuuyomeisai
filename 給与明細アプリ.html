@@ -75,6 +75,7 @@ button{font-family:'Zen Kaku Gothic New',sans-serif;cursor:pointer;}
 .tag{display:inline-block;font-size:11px;padding:3px 9px;border-radius:20px;font-weight:500;}
 .tag.ok{background:var(--accent-soft);color:var(--accent);}
 .tag.missing{background:var(--danger-soft);color:var(--danger);}
+.tag.warn{background:var(--money-soft);color:var(--money);}
 .big-num{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;color:var(--text);}
 .empty{text-align:center;padding:26px 10px;color:var(--text-2);font-size:13px;}
 nav.tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--border);display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom));}
@@ -777,12 +778,17 @@ function renderLedgerRow(container, doc, ym, labelOverride){
   if(doc){
     row.className = 'ledger-row';
     const delBtn = doc.source==='drive' ? '' : `<button class="x-btn" style="font-size:16px;" data-del="${doc.id}">×</button>`;
+    const ymKey = (doc.y && doc.mo) ? `${doc.y}-${String(doc.mo).padStart(2,'0')}` : null;
+    const rec = ymKey ? payHistory[ymKey] : null;
+    const registered = doc.type==='bonus' ? !!(rec && rec.bonus) : !!(rec && rec.salary);
+    const unregTag = registered ? '' : '<span class="tag warn">未登録</span>';
     row.innerHTML = `
       <div class="dot"></div>
       <div class="info">
         <div class="m">${label}</div>
         <div class="f">${doc.name}${doc.source==='drive' ? '（Drive）' : ''}</div>
       </div>
+      ${unregTag}
       <span class="tag ok">閲覧</span>
       ${delBtn}
     `;
@@ -1181,6 +1187,7 @@ function setupManualEntryForm(prefix){
     saveJSON('payHistory', payHistory);
     renderSalaryChart();
     el('status').textContent = `${ym} の実績をグラフに反映しました。`;
+    renderMeisaiLists();
     if(settings.scriptUrl && settings.driveFolderId) await pushSettingsToDrive();
   });
 }
