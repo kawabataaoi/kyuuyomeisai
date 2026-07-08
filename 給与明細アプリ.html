@@ -137,8 +137,6 @@ nav.tabbar button svg{width:20px;height:20px;}
       <div id="meisai-list"></div>
       <button class="link-btn" id="btn-show-all">すべての明細を表示</button>
       <div id="meisai-all" style="display:none;margin-top:6px;border-top:1px solid var(--border);"></div>
-      <div class="section-title" style="margin-top:18px;">賞与明細</div>
-      <div id="meisai-bonus"><div class="empty">賞与の明細はまだありません。</div></div>
     </div>
   </section>
 
@@ -782,10 +780,11 @@ function renderLedgerRow(container, doc, ym, labelOverride){
     const rec = ymKey ? payHistory[ymKey] : null;
     const registered = doc.type==='bonus' ? !!(rec && rec.bonus) : !!(rec && rec.salary);
     const unregTag = registered ? '' : '<span class="tag warn">未登録</span>';
+    const monthLabelStyle = doc.type==='bonus' ? ' style="color:var(--money);"' : '';
     row.innerHTML = `
       <div class="dot"></div>
       <div class="info">
-        <div class="m">${label}</div>
+        <div class="m"${monthLabelStyle}>${label}</div>
         <div class="f">${doc.name}${doc.source==='drive' ? '（Drive）' : ''}</div>
       </div>
       ${unregTag}
@@ -840,37 +839,40 @@ function renderMeisaiLists(){
   recent.forEach(ym=>{
     const doc = salaryDocs.find(d=>d.y===ym.y && d.mo===ym.mo);
     renderLedgerRow(listEl, doc, ym);
+    const bonusDoc = bonusDocs.find(d=>d.y===ym.y && d.mo===ym.mo);
+    if(bonusDoc) renderLedgerRow(listEl, bonusDoc, ym, `${ym.y}年${ym.mo}月度の賞与明細`);
   });
 
   const allEl = document.getElementById('meisai-all');
   allEl.innerHTML = '';
   const recentKeys = new Set(recent.map(r=>r.y*100+r.mo));
   const fullRange = getFullMonthRange(salaryDocs).filter(m=>!recentKeys.has(m.y*100+m.mo));
-  if(fullRange.length===0){
+  const extraBonus = bonusDocs.filter(d=>{
+    const inRecent = recentKeys.has((d.y||0)*100+(d.mo||0));
+    const inRange = fullRange.some(m=>m.y===d.y && m.mo===d.mo);
+    return !inRecent && !inRange;
+  });
+  if(fullRange.length===0 && extraBonus.length===0){
     allEl.innerHTML = '<div class="empty">他に明細はありません。</div>';
   }else{
     const byYear = {};
-    fullRange.forEach(m=>{ (byYear[m.y] = byYear[m.y]||[]).push(m.mo); });
+    fullRange.forEach(m=>{ (byYear[m.y] = byYear[m.y]||[]).push({mo:m.mo, kind:'salary'}); });
+    extraBonus.forEach(d=>{ if(d.y) (byYear[d.y] = byYear[d.y]||[]).push({mo:d.mo, kind:'bonus'}); });
     Object.keys(byYear).map(Number).sort((a,b)=>b-a).forEach(y=>{
       const yearHeader = document.createElement('div');
       yearHeader.style.cssText = 'font-size:12px;font-weight:700;color:var(--text-2);margin:14px 0 4px;';
       yearHeader.textContent = `${y}年`;
       allEl.appendChild(yearHeader);
-      byYear[y].sort((a,b)=>b-a).forEach(mo=>{
-        const doc = salaryDocs.find(d=>d.y===y && d.mo===mo);
-        renderLedgerRow(allEl, doc, {y,mo});
+      const items = byYear[y].sort((a,b)=> b.mo - a.mo || (a.kind==='salary'?-1:1));
+      items.forEach(item=>{
+        if(item.kind==='salary'){
+          const doc = salaryDocs.find(d=>d.y===y && d.mo===item.mo);
+          renderLedgerRow(allEl, doc, {y,mo:item.mo});
+        }else{
+          const doc = bonusDocs.find(d=>d.y===y && d.mo===item.mo);
+          renderLedgerRow(allEl, doc, {y,mo:item.mo}, `${y}年${item.mo}月度の賞与明細`);
+        }
       });
-    });
-  }
-
-  const bonusEl = document.getElementById('meisai-bonus');
-  bonusEl.innerHTML = '';
-  if(bonusDocs.length===0){
-    bonusEl.innerHTML = '<div class="empty">賞与の明細はまだありません。</div>';
-  }else{
-    bonusDocs.sort((a,b)=> (b.y*100+(b.mo||0)) - (a.y*100+(a.mo||0))).forEach(d=>{
-      const label = d.y ? `${d.y}年${d.mo}月度の賞与明細` : d.name;
-      renderLedgerRow(bonusEl, d, {y:d.y,mo:d.mo}, label);
     });
   }
 
