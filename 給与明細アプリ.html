@@ -119,7 +119,7 @@ nav.tabbar button svg{width:20px;height:20px;}
         <tr><td class="label">次回給料日</td><td class="val" id="sum-payday">-</td></tr>
         <tr><td class="label">次回締め日</td><td class="val" id="sum-closeday">-</td></tr>
         <tr><td class="label">次回賞与</td><td class="val" id="sum-bonus">-</td></tr>
-        <tr><td class="label">有給残日数</td><td class="val" id="sum-leave">0.0日</td></tr>
+        <tr><td class="label">有給残日数</td><td class="val"><span id="sum-leave">0.0日</span><div id="sum-leave-expire" style="font-size:10px;font-weight:400;color:var(--danger);display:none;"></div></td></tr>
         <tr><td class="label">次回有給付与</td><td class="val" id="sum-grant">-</td></tr>
         <tr><td class="label" id="sum-ot-label">前月残業時間</td><td class="val" id="sum-ot">未入力</td></tr>
       </table>
@@ -1621,6 +1621,16 @@ function renderSummary(){
   document.getElementById('sum-closeday').textContent = fmtDate(nextClosingDate());
   document.getElementById('sum-bonus').textContent = fmtDate(nextBonusDate());
   document.getElementById('sum-leave').textContent = computeLeaveInfo().balance.toFixed(1)+'日';
+  const cyForExpire = new Date().getFullYear();
+  const expiringYear = String(cyForExpire - 1);
+  const expiringAmount = leave.byYear && leave.byYear[expiringYear] ? leave.byYear[expiringYear] : 0;
+  const expireEl = document.getElementById('sum-leave-expire');
+  if(expiringAmount > 0){
+    expireEl.textContent = `内${expiringAmount}日分　次回有給付与時失効`;
+    expireEl.style.display = 'block';
+  }else{
+    expireEl.style.display = 'none';
+  }
   document.getElementById('sum-grant').textContent = settings.grantDate ? `${isoToDisplay(settings.grantDate)}（${settings.grantDays||0}日）` : '未設定';
   const pm = previousMonthStr();
   const [py, pmo] = pm.split('-').map(Number);
