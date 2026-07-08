@@ -982,16 +982,18 @@ function parseSettingsText(text){
           }).filter(c=>c.year && !isNaN(c.amount));
         }
         result.usage.push(entry);
+        return;
       }
-      return;
+      section = null;
     }
     if(section === 'ot'){
       m = line.match(/^(\d{6}):([\d.]+)$/);
       if(m){
         const ym = `${m[1].slice(0,4)}-${m[1].slice(4,6)}`;
         result.otHoursByMonth[ym] = parseFloat(m[2]);
+        return;
       }
-      return;
+      section = null;
     }
     if(section === 'pay'){
       m = line.match(/^(\d{6}):bonus:([\d.]+):([\d.]+)$/);
@@ -1006,8 +1008,9 @@ function parseSettingsText(text){
         const ym = `${m[1].slice(0,4)}-${m[1].slice(4,6)}`;
         if(!result.payHistory[ym]) result.payHistory[ym] = {};
         result.payHistory[ym].salary = {base: parseFloat(m[2]), otPay: parseFloat(m[3]), total: parseFloat(m[4]), net: parseFloat(m[5])};
+        return;
       }
-      return;
+      section = null;
     }
     if(m = line.match(/^有給次回付与:(\d{8})$/)){
       result.settings.grantDate = `${m[1].slice(0,4)}-${m[1].slice(4,6)}-${m[1].slice(6,8)}`;
