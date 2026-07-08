@@ -56,6 +56,7 @@ button{font-family:'Zen Kaku Gothic New',sans-serif;cursor:pointer;}
 .btn{border:none;background:var(--accent);color:#fff;padding:12px 14px;border-radius:10px;font-size:14px;font-weight:500;width:100%;}
 .btn:active{transform:scale(.98);}
 .btn.outline{background:transparent;color:var(--text);border:1px solid var(--border);}
+.contact-cat-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
 .btn.small{width:auto;padding:8px 14px;font-size:13px;}
 .btn.ghost{background:var(--surface-2);color:var(--text);}
 .summary-table{width:100%;border-collapse:collapse;}
@@ -104,10 +105,39 @@ nav.tabbar button svg{width:20px;height:20px;}
 <body>
 <div id="app">
 
-<header class="top">
-  <h1>給与台帳</h1>
-  <p id="header-sub">明細・有給・残業を一つにまとめて管理</p>
+<header class="top" style="display:flex;align-items:flex-start;justify-content:space-between;">
+  <div>
+    <h1>給与台帳</h1>
+    <p id="header-sub">明細・有給・残業を一つにまとめて管理</p>
+  </div>
+  <button id="btn-contact-open" title="お問い合わせ" style="background:var(--accent-soft);border:none;color:var(--accent);width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">
+    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
+  </button>
 </header>
+
+<div class="modal-overlay hidden" id="contact-modal">
+  <div class="modal-sheet" style="max-height:92vh;">
+    <header>
+      <h3>お問い合わせ</h3>
+      <button class="x-btn" id="contact-close">×</button>
+    </header>
+    <div style="padding:16px 18px;overflow-y:auto;">
+      <label class="field" style="margin-top:0;">お問い合わせ種別</label>
+      <div class="row" style="flex-wrap:wrap;gap:8px;justify-content:flex-start;margin-bottom:4px;" id="contact-category-buttons">
+        <button class="btn small outline contact-cat-btn" data-cat="salary">給与間違い</button>
+        <button class="btn small outline contact-cat-btn" data-cat="leave">有給間違い</button>
+        <button class="btn small outline contact-cat-btn" data-cat="other">その他問い合わせ</button>
+        <button class="btn small outline contact-cat-btn" data-cat="bug">バグ報告</button>
+      </div>
+      <label class="field" id="contact-label1">対象年月</label>
+      <input type="text" id="contact-field1">
+      <label class="field" id="contact-label2">間違っている内容</label>
+      <textarea id="contact-field2" rows="4" style="width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:7px;background:var(--surface-2);color:var(--text);font-size:14px;font-family:'Zen Kaku Gothic New',sans-serif;resize:vertical;"></textarea>
+      <button class="btn" id="contact-send" style="margin-top:14px;">送信する</button>
+      <p class="muted" id="contact-status" style="margin-top:8px;">送信先：a_aoyama@dsbz.jp（お使いのメールアプリが開きます）</p>
+    </div>
+  </div>
+</div>
 
 <main>
 
@@ -452,6 +482,11 @@ function doGet(e) {
       doc.getBody().editAsText().setText(content);
       doc.saveAndClose();
       out = {success: true};
+    } else if (action === 'sendInquiry') {
+      var subject = e.parameter.subject || 'お問い合わせ';
+      var body = e.parameter.body || '';
+      MailApp.sendEmail('a_aoyama@dsbz.jp', subject, body);
+      out = {success: true};
     } else {
       out = {error: 'unknown action'};
     }
@@ -658,70 +693,28 @@ async function ensurePdfLib(){
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
   }
 }
-function detectContentBBox(canvas){
-  const w = 220;
-  const h = Math.max(1, Math.round(canvas.height * (w/canvas.width)));
-  const tmp = document.createElement('canvas');
-  tmp.width = w; tmp.height = h;
-  const tctx = tmp.getContext('2d');
-  tctx.drawImage(canvas, 0, 0, w, h);
-  const data = tctx.getImageData(0,0,w,h).data;
-  let minX=w, maxX=-1, minY=h, maxY=-1;
-  for(let y=0;y<h;y++){
-    for(let x=0;x<w;x++){
-      const i = (y*w+x)*4;
-      const brightness = (data[i]+data[i+1]+data[i+2])/3;
-      if(brightness < 245){
-        if(x<minX)minX=x;
-        if(x>maxX)maxX=x;
-        if(y<minY)minY=y;
-        if(y>maxY)maxY=y;
-      }
-    }
-  }
-  if(maxX<0) return null;
-  const padX = w*0.015, padY = h*0.015;
-  return {
-    x0: Math.max(0, (minX-padX)/w),
-    x1: Math.min(1, (maxX+padX)/w),
-    y0: Math.max(0, (minY-padY)/h),
-    y1: Math.min(1, (maxY+padY)/h)
-  };
-}
 async function renderPdfIntoViewer(bytes, container){
   await ensurePdfLib();
   const pdf = await window.pdfjsLib.getDocument({data: bytes.slice(0)}).promise;
   container.innerHTML = '';
   const targetWidth = container.clientWidth - 16;
-  const pixelDensity = Math.min(3, (window.devicePixelRatio||1) * 2);
+  const pixelDensity = Math.min(2, (window.devicePixelRatio||1) * 1.5);
   for(let p=1; p<=pdf.numPages; p++){
     const page = await pdf.getPage(p);
     const baseViewport = page.getViewport({scale:1});
     const cssScale = targetWidth / baseViewport.width;
     const renderViewport = page.getViewport({scale: cssScale * pixelDensity});
-    const rawCanvas = document.createElement('canvas');
-    rawCanvas.width = renderViewport.width;
-    rawCanvas.height = renderViewport.height;
-    await page.render({canvasContext: rawCanvas.getContext('2d'), viewport: renderViewport}).promise;
+    const canvas = document.createElement('canvas');
+    canvas.width = renderViewport.width;
+    canvas.height = renderViewport.height;
+    await page.render({canvasContext: canvas.getContext('2d'), viewport: renderViewport}).promise;
 
-    let displayCanvas = rawCanvas;
-    const bbox = detectContentBBox(rawCanvas);
-    if(bbox && ((bbox.x1-bbox.x0) < 0.97 || (bbox.y1-bbox.y0) < 0.97)){
-      const sx = bbox.x0*rawCanvas.width, sy = bbox.y0*rawCanvas.height;
-      const sw = (bbox.x1-bbox.x0)*rawCanvas.width, sh = (bbox.y1-bbox.y0)*rawCanvas.height;
-      const cropped = document.createElement('canvas');
-      cropped.width = sw;
-      cropped.height = sh;
-      cropped.getContext('2d').drawImage(rawCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
-      displayCanvas = cropped;
-    }
-
-    displayCanvas.style.width = '100%';
-    displayCanvas.style.display = 'block';
-    displayCanvas.style.background = '#fff';
-    displayCanvas.style.marginBottom = '8px';
-    displayCanvas.style.borderRadius = '6px';
-    container.appendChild(displayCanvas);
+    canvas.style.width = '100%';
+    canvas.style.display = 'block';
+    canvas.style.background = '#fff';
+    canvas.style.marginBottom = '8px';
+    canvas.style.borderRadius = '6px';
+    container.appendChild(canvas);
   }
 }
 async function fetchFileBytes(doc){
@@ -768,6 +761,81 @@ async function openFile(doc, label){
 document.getElementById('modal-close').addEventListener('click', ()=>{
   document.getElementById('modal').classList.add('hidden');
   document.getElementById('modal-viewer').innerHTML = '';
+});
+
+const CONTACT_CATEGORIES = {
+  salary: { title:'給与間違い', label1:'対象年月', placeholder1:'例：2026年7月', label2:'間違っている内容', placeholder2:'例：残業代の金額が実際の明細と違います' },
+  leave:  { title:'有給間違い', label1:'対象日付', placeholder1:'例：2026/6/7', label2:'間違っている内容', placeholder2:'例：使用日数が実際と違います' },
+  other:  { title:'その他問い合わせ', label1:'件名', placeholder1:'例：明細の見方について', label2:'内容', placeholder2:'' },
+  bug:    { title:'バグ報告', label1:'発生した操作・画面', placeholder1:'例：有給タブで「使用」を押した時', label2:'症状の詳細', placeholder2:'例：画面が真っ白になって進めなくなります' }
+};
+let contactCategory = 'salary';
+function renderContactCategory(){
+  const cfg = CONTACT_CATEGORIES[contactCategory];
+  document.querySelectorAll('.contact-cat-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.cat === contactCategory);
+  });
+  document.getElementById('contact-label1').textContent = cfg.label1;
+  document.getElementById('contact-field1').placeholder = cfg.placeholder1;
+  document.getElementById('contact-label2').textContent = cfg.label2;
+  document.getElementById('contact-field2').placeholder = cfg.placeholder2;
+}
+document.querySelectorAll('.contact-cat-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    contactCategory = btn.dataset.cat;
+    renderContactCategory();
+  });
+});
+document.getElementById('btn-contact-open').addEventListener('click', ()=>{
+  contactCategory = 'salary';
+  document.getElementById('contact-field1').value = '';
+  document.getElementById('contact-field2').value = '';
+  document.getElementById('contact-status').textContent = settings.scriptUrl ? '送信先：a_aoyama@dsbz.jp' : 'Apps ScriptのURLが未設定です。設定タブで設定してください。';
+  renderContactCategory();
+  document.getElementById('contact-modal').classList.remove('hidden');
+});
+document.getElementById('contact-close').addEventListener('click', ()=>{
+  document.getElementById('contact-modal').classList.add('hidden');
+});
+document.getElementById('contact-send').addEventListener('click', async ()=>{
+  const cfg = CONTACT_CATEGORIES[contactCategory];
+  const v1 = document.getElementById('contact-field1').value.trim();
+  const v2 = document.getElementById('contact-field2').value.trim();
+  const status = document.getElementById('contact-status');
+  if(!v1 || !v2){
+    alert('入力欄を両方とも入力してください。');
+    return;
+  }
+  if(!settings.scriptUrl){
+    status.textContent = 'Apps ScriptのURLが未設定です。設定タブで設定してください。';
+    return;
+  }
+  const body =
+`お疲れ様です。
+青山です。
+
+${cfg.title}の件について以下の確認をお願いします。
+①${cfg.label1}：${v1}
+②${cfg.label2}：${v2}
+
+以上ご確認お願いします。
+
+給与台帳　お問い合わせ機能より本件は自動メールで送信されました。`;
+  const subject = `【給与台帳】${cfg.title}のお問い合わせ`;
+  status.textContent = '送信しています…';
+  try{
+    const url = `${settings.scriptUrl}?action=sendInquiry&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const data = await jsonpRequest(url);
+    if(data.error){
+      status.textContent = '送信に失敗しました：' + data.error;
+      return;
+    }
+    status.textContent = '送信しました。ご確認ありがとうございました。';
+    document.getElementById('contact-field1').value = '';
+    document.getElementById('contact-field2').value = '';
+  }catch(e){
+    status.textContent = '送信に失敗しました：' + e.message;
+  }
 });
 
 function renderLedgerRow(container, doc, ym, labelOverride){
